@@ -7,7 +7,82 @@
 #include "../gfx_opengl.h"
 #include "dwnd.h"
 
-#include <GL/glew.h>
+#define RSPTHREAD
+
+#ifdef RSPTHREAD
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#endif
+
+extern "C" GFX_INFO GfxInfo;
+GFX_INFO GfxInfo;
+
+class Operation
+{
+public:
+    virtual ~Operation() = default;
+    virtual bool execute() = 0;
+};
+
+class InitOperation : public Operation
+{
+public:
+    virtual bool execute() override
+    {
+        //    gfx_init(&gfx_d3d11_dxgi_api, &gfx_direct3d11_api, "SM64");
+        gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
+        return true;
+    }
+};
+
+class DeinitOperation : public Operation
+{
+public:
+    virtual bool execute() override
+    {
+        gfx_deinit();
+        return false;
+    }
+};
+
+class DlOperation : public Operation
+{
+public:
+    virtual bool execute() override
+    {
+        auto dlistStart = *(uint32_t*)(GfxInfo.DMEM + 0xff0);
+        auto dlistSize = *(uint32_t*)(GfxInfo.DMEM + 0xff4);
+        gfx_start_frame();
+        gfx_run((Gfx*)&GfxInfo.RDRAM[dlistStart], dlistSize);
+        gfx_end_frame();
+        return true;
+    }
+};
+
+static std::unique_ptr<Operation> gOperation;
+static std::condition_variable gOperationCV;
+static std::mutex gOperationMutex;
+static std::thread gRSPThread;
+
+static void RSPThread()
+{
+    bool running = true;
+
+    std::unique_lock<std::mutex> lck(gOperationMutex);
+    do
+    {
+        gOperationCV.wait(lck, [] { return gOperation.get(); });
+
+        running = gOperation->execute();
+        gOperation.reset();
+
+        lck.unlock();
+        gOperationCV.notify_one();
+        lck.lock();
+    } 
+    while (running);
+}
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
@@ -24,9 +99,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     }
     return TRUE;
 }
-
-extern "C" GFX_INFO GfxInfo;
-GFX_INFO GfxInfo;
 
 /******************************************************************
   Function: CaptureScreen
@@ -165,8 +237,6 @@ EXPORT void CALL MoveScreen(int xpos, int ypos)
 
 }
 
-extern void dwnd_swap_buffers_begin(void);
-
 /******************************************************************
   Function: ProcessDList
   Purpose:  This function is called when there is a Dlist to be
@@ -176,11 +246,17 @@ extern void dwnd_swap_buffers_begin(void);
 *******************************************************************/
 EXPORT void CALL ProcessDList(void)
 {
-    auto dlistStart = *(uint32_t*)(GfxInfo.DMEM + 0xff0);
-    auto dlistSize = *(uint32_t*)(GfxInfo.DMEM + 0xff4);
-    gfx_start_frame();
-    gfx_run((Gfx*)&GfxInfo.RDRAM[dlistStart], dlistSize);
-    gfx_end_frame();
+#ifndef RSPTHREAD
+    DlOperation operation;
+    operation.execute();
+#else
+    std::unique_lock<std::mutex> lck(gOperationMutex);
+    gOperation = std::make_unique<DlOperation>();
+    lck.unlock();
+    gOperationCV.notify_one();
+    lck.lock();
+    gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
+#endif
 }
 
 /******************************************************************
@@ -200,7 +276,18 @@ EXPORT void CALL ProcessRDPList(void) { }
 *******************************************************************/
 EXPORT void CALL RomClosed(void)
 {
-    gfx_deinit();
+#ifndef RSPTHREAD
+    DeinitOperation operation;
+    operation.execute();
+#else
+    std::unique_lock<std::mutex> lck(gOperationMutex);
+    gOperation = std::make_unique<DeinitOperation>();
+    lck.unlock();
+    gOperationCV.notify_one();
+    lck.lock();
+    gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
+    gRSPThread.join();
+#endif
 }
 
 /******************************************************************
@@ -212,8 +299,18 @@ EXPORT void CALL RomClosed(void)
 *******************************************************************/
 EXPORT void CALL RomOpen(void)
 {
-//    gfx_init(&gfx_d3d11_dxgi_api, &gfx_direct3d11_api, "SM64");
-    gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
+#ifndef RSPTHREAD
+    InitOperation operation;
+    operation.execute();
+#else
+    std::unique_lock<std::mutex> lck(gOperationMutex);
+    gOperation = std::make_unique<InitOperation>();
+    gRSPThread = std::thread(RSPThread);
+    lck.unlock();
+    gOperationCV.notify_one();
+    lck.lock();
+    gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
+#endif
 }
 
 /******************************************************************

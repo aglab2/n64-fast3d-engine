@@ -6,7 +6,8 @@
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
-#include <PR/gbi.h>
+#include "gbi.h"
+
 #define FOR_WINDOWS 1
 
 #if FOR_WINDOWS
@@ -18,6 +19,8 @@
 struct ShaderProgram {
     uint32_t shader_id;
     GLuint opengl_program_id;
+    GLuint opengl_fragment_shader_id;
+    GLuint opengl_vertex_shader_id;
     uint8_t num_inputs;
     bool used_textures[2];
     uint8_t num_floats;
@@ -150,6 +153,8 @@ static void append_formula(char *buf, size_t *len, uint8_t c[2][4], bool do_sing
         append_str(buf, len, shader_item_to_str(c[only_alpha][3], with_alpha, only_alpha, opt_alpha, false));
     }
 }
+
+static void gfx_shader_cache_drop();
 
 static struct ShaderProgram *gfx_opengl_create_and_load_new_shader(uint32_t shader_id) {
     struct CCFeatures cc_features;
@@ -313,6 +318,9 @@ static struct ShaderProgram *gfx_opengl_create_and_load_new_shader(uint32_t shad
 
     size_t cnt = 0;
 
+    if (shader_program_pool_size == 64)
+        gfx_shader_cache_drop();
+        
     struct ShaderProgram *prg = &shader_program_pool[shader_program_pool_size++];
     prg->attrib_locations[cnt] = glGetAttribLocation(shader_program, "aVtxPos");
     prg->attrib_sizes[cnt] = 4;
@@ -377,6 +385,24 @@ static struct ShaderProgram *gfx_opengl_lookup_shader(uint32_t shader_id) {
     return NULL;
 }
 
+static void gfx_opengl_delete_shader(struct ShaderProgram* prg) {
+    prg->shader_id = 0;
+    glDeleteShader(prg->opengl_program_id);
+    glDeleteShader(prg->opengl_vertex_shader_id);
+    glDeleteShader(prg->opengl_fragment_shader_id);
+}
+
+static void gfx_shader_cache_drop()
+{
+    for (int i = 0; i < shader_program_pool_size; i++)
+    {
+        gfx_opengl_delete_shader(&shader_program_pool[i]);
+    }
+
+    memset(shader_program_pool, 0, sizeof(shader_program_pool));
+    shader_program_pool_size = 0;
+}
+
 static void gfx_opengl_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
     *num_inputs = prg->num_inputs;
     used_textures[0] = prg->used_textures[0];
@@ -387,6 +413,10 @@ static GLuint gfx_opengl_new_texture(void) {
     GLuint ret;
     glGenTextures(1, &ret);
     return ret;
+}
+
+static void gfx_opengl_delete_texture(GLuint id) {
+    glDeleteTextures(1, &id);
 }
 
 static void gfx_opengl_select_texture(int tile, GLuint texture_id) {
@@ -476,7 +506,7 @@ static void gfx_opengl_on_resize(void) {
 
 
 static void gfx_opengl_deinit(void) {
-    
+    gfx_shader_cache_drop();
     glDeleteBuffers(1, &opengl_vbo);
 }
 
@@ -502,8 +532,10 @@ struct GfxRenderingAPI gfx_opengl_api = {
     gfx_opengl_load_shader,
     gfx_opengl_create_and_load_new_shader,
     gfx_opengl_lookup_shader,
+    gfx_opengl_delete_shader,
     gfx_opengl_shader_get_info,
     gfx_opengl_new_texture,
+    gfx_opengl_delete_texture,
     gfx_opengl_select_texture,
     gfx_opengl_upload_texture,
     gfx_opengl_set_sampler_parameters,
@@ -517,9 +549,7 @@ struct GfxRenderingAPI gfx_opengl_api = {
     gfx_opengl_init,
     gfx_opengl_deinit,
     gfx_opengl_on_resize,
-    gfx_opengl_start_frame,
-    gfx_opengl_end_frame,
-    gfx_opengl_finish_render
+    gfx_opengl_start_frame
 };
 
 #endif

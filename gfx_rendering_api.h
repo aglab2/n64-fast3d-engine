@@ -13,8 +13,10 @@ struct GfxRenderingAPI {
     void (*load_shader)(struct ShaderProgram *new_prg);
     struct ShaderProgram *(*create_and_load_new_shader)(uint32_t shader_id);
     struct ShaderProgram *(*lookup_shader)(uint32_t shader_id);
+    void (*delete_shader)(struct ShaderProgram*);
     void (*shader_get_info)(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]);
     uint32_t (*new_texture)(void);
+    void (*delete_texture)(uint32_t);
     void (*select_texture)(int tile, uint32_t texture_id);
     void (*upload_texture)(const uint8_t *rgba32_buf, int width, int height);
     void (*set_sampler_parameters)(int sampler, bool linear_filter, uint32_t cms, uint32_t cmt);

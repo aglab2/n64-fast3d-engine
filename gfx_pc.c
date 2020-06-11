@@ -20,6 +20,27 @@
 
 #include "Fast3DEngine/Gfx #1.3.h"
 
+// Fixed point conversion factors
+#define FIXED2FLOATRECIP1	0.5f
+#define FIXED2FLOATRECIP2	0.25f
+#define FIXED2FLOATRECIP3	0.125f
+#define FIXED2FLOATRECIP4	0.0625f
+#define FIXED2FLOATRECIP5	0.03125f
+#define FIXED2FLOATRECIP6	0.015625f
+#define FIXED2FLOATRECIP7	0.0078125f
+#define FIXED2FLOATRECIP8	0.00390625f
+#define FIXED2FLOATRECIP9	0.001953125f
+#define FIXED2FLOATRECIP10	0.0009765625f
+#define FIXED2FLOATRECIP11	0.00048828125f
+#define FIXED2FLOATRECIP12	2.44140625e-04f
+#define FIXED2FLOATRECIP13	1.220703125e-04f
+#define FIXED2FLOATRECIP14	6.103515625e-05f
+#define FIXED2FLOATRECIP15	3.0517578125e-05f
+#define FIXED2FLOATRECIP16	1.52587890625e-05f
+
+#define _FIXED2FLOAT( v, b ) \
+	((f32)v * FIXED2FLOATRECIP##b)
+
 
 extern GFX_INFO GfxInfo;
 
@@ -242,6 +263,16 @@ static void gfx_generate_cc(struct ColorCombiner *comb, uint32_t cc_id) {
     memcpy(comb->shader_input_mapping, shader_input_mapping, sizeof(shader_input_mapping));
 }
 
+static void gfx_color_combiner_cache_drop()
+{
+    for (size_t i = 0; i < color_combiner_pool_size; i++) {
+        gfx_rapi->delete_shader(color_combiner_pool[i].prg);
+    }
+
+    memset(color_combiner_pool, 0, sizeof(color_combiner_pool));
+    color_combiner_pool_size = 0;
+}
+
 static struct ColorCombiner *gfx_lookup_or_create_color_combiner(uint32_t cc_id) {
     static struct ColorCombiner *prev_combiner;
     if (prev_combiner != NULL && prev_combiner->cc_id == cc_id) {
@@ -254,9 +285,27 @@ static struct ColorCombiner *gfx_lookup_or_create_color_combiner(uint32_t cc_id)
         }
     }
     gfx_flush();
+
+    if (64 == color_combiner_pool_size)
+        gfx_color_combiner_cache_drop();
     struct ColorCombiner *comb = &color_combiner_pool[color_combiner_pool_size++];
     gfx_generate_cc(comb, cc_id);
     return prev_combiner = comb;
+}
+
+static void gfx_texture_cache_drop()
+{
+    gfx_texture_cache.pool_pos = 0;
+    for (int i = 0; i < 0x400; i++)
+    {
+        gfx_texture_cache.hashmap[i] = NULL;
+    }
+    for (int i = 0; i < sizeof(gfx_texture_cache.pool) / sizeof(struct TextureHashmapNode); i++)
+    {
+        gfx_rapi->delete_texture(gfx_texture_cache.pool[i].texture_id);
+    }
+
+    memset(&gfx_texture_cache, 0, sizeof(gfx_texture_cache));
 }
 
 static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, uint32_t hash, const uint8_t *orig_addr, uint32_t fmt, uint32_t siz) {
@@ -271,7 +320,7 @@ static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, ui
     }
     if (gfx_texture_cache.pool_pos == sizeof(gfx_texture_cache.pool) / sizeof(struct TextureHashmapNode)) {
         // Pool is full. We just invalidate everything and start over.
-        gfx_texture_cache.pool_pos = 0;
+        gfx_texture_cache_drop();
         node = &gfx_texture_cache.hashmap[hash];
         //puts("Clearing texture cache");
     }
@@ -595,6 +644,7 @@ static void gfx_matrix_mul(float res[4][4], const float a[4][4], const float b[4
     memcpy(res, tmp, sizeof(tmp));
 }
 
+
 static void gfx_sp_matrix(uint8_t parameters, const int32_t *addr) {
     float matrix[4][4];
 #ifndef GBI_FLOATS
@@ -654,15 +704,15 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
         const Vtx_tn *vn = &vertices[i].n;
         struct LoadedVertex *d = &rsp.loaded_vertices[dest_index];
         
-        float x = v->ob[0] * rsp.MP_matrix[0][0] + v->ob[1] * rsp.MP_matrix[1][0] + v->ob[2] * rsp.MP_matrix[2][0] + rsp.MP_matrix[3][0];
-        float y = v->ob[0] * rsp.MP_matrix[0][1] + v->ob[1] * rsp.MP_matrix[1][1] + v->ob[2] * rsp.MP_matrix[2][1] + rsp.MP_matrix[3][1];
-        float z = v->ob[0] * rsp.MP_matrix[0][2] + v->ob[1] * rsp.MP_matrix[1][2] + v->ob[2] * rsp.MP_matrix[2][2] + rsp.MP_matrix[3][2];
-        float w = v->ob[0] * rsp.MP_matrix[0][3] + v->ob[1] * rsp.MP_matrix[1][3] + v->ob[2] * rsp.MP_matrix[2][3] + rsp.MP_matrix[3][3];
+        float x = v->x * rsp.MP_matrix[0][0] + v->y * rsp.MP_matrix[1][0] + v->z * rsp.MP_matrix[2][0] + rsp.MP_matrix[3][0];
+        float y = v->x * rsp.MP_matrix[0][1] + v->y * rsp.MP_matrix[1][1] + v->z * rsp.MP_matrix[2][1] + rsp.MP_matrix[3][1];
+        float z = v->x * rsp.MP_matrix[0][2] + v->y * rsp.MP_matrix[1][2] + v->z * rsp.MP_matrix[2][2] + rsp.MP_matrix[3][2];
+        float w = v->x * rsp.MP_matrix[0][3] + v->y * rsp.MP_matrix[1][3] + v->z * rsp.MP_matrix[2][3] + rsp.MP_matrix[3][3];
         
         x = gfx_adjust_x_for_aspect_ratio(x);
         
-        short U = v->tc[0] * rsp.texture_scaling_factor.s >> 16;
-        short V = v->tc[1] * rsp.texture_scaling_factor.t >> 16;
+        short U = v->s * rsp.texture_scaling_factor.s >> 16;
+        short V = v->t * rsp.texture_scaling_factor.t >> 16;
         
         if (rsp.geometry_mode & G_LIGHTING) {
             if (rsp.lights_changed) {
@@ -682,9 +732,9 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             
             for (int i = 0; i < rsp.current_num_lights - 1; i++) {
                 float intensity = 0;
-                intensity += vn->n[0] * rsp.current_lights_coeffs[i][0];
-                intensity += vn->n[1] * rsp.current_lights_coeffs[i][1];
-                intensity += vn->n[2] * rsp.current_lights_coeffs[i][2];
+                intensity += vn->nx * rsp.current_lights_coeffs[i][0];
+                intensity += vn->ny * rsp.current_lights_coeffs[i][1];
+                intensity += vn->nz * rsp.current_lights_coeffs[i][2];
                 intensity /= 127.0f;
                 if (intensity > 0.0f) {
                     r += intensity * rsp.current_lights[i].col[0];
@@ -699,20 +749,20 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             
             if (rsp.geometry_mode & G_TEXTURE_GEN) {
                 float dotx = 0, doty = 0;
-                dotx += vn->n[0] * rsp.current_lookat_coeffs[0][0];
-                dotx += vn->n[1] * rsp.current_lookat_coeffs[0][1];
-                dotx += vn->n[2] * rsp.current_lookat_coeffs[0][2];
-                doty += vn->n[0] * rsp.current_lookat_coeffs[1][0];
-                doty += vn->n[1] * rsp.current_lookat_coeffs[1][1];
-                doty += vn->n[2] * rsp.current_lookat_coeffs[1][2];
+                dotx += vn->nx * rsp.current_lookat_coeffs[0][0];
+                dotx += vn->ny * rsp.current_lookat_coeffs[0][1];
+                dotx += vn->nz * rsp.current_lookat_coeffs[0][2];
+                doty += vn->nx * rsp.current_lookat_coeffs[1][0];
+                doty += vn->ny * rsp.current_lookat_coeffs[1][1];
+                doty += vn->nz * rsp.current_lookat_coeffs[1][2];
                 
                 U = (int32_t)((dotx / 127.0f + 1.0f) / 4.0f * rsp.texture_scaling_factor.s);
                 V = (int32_t)((doty / 127.0f + 1.0f) / 4.0f * rsp.texture_scaling_factor.t);
             }
         } else {
-            d->color.r = v->cn[0];
-            d->color.g = v->cn[1];
-            d->color.b = v->cn[2];
+            d->color.r = v->r;
+            d->color.g = v->g;
+            d->color.b = v->b;
         }
         
         d->u = U;
@@ -748,7 +798,7 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
             if (fog_z > 255) fog_z = 255;
             d->color.a = fog_z; // Use alpha variable to store fog factor
         } else {
-            d->color.a = v->cn[3];
+            d->color.a = v->a;
         }
     }
 }
@@ -1581,8 +1631,9 @@ static void gfx_run_dl(Gfx* cmd, int dlistSize) {
             case G_TEXRECT:
             case G_TEXRECTFLIP:
             {
-                int32_t lrx, lry, tile, ulx, uly;
-                uint32_t uls, ult, dsdx, dtdy;
+                int32_t lrx = 0, lry = 0, tile = 0, ulx = 0, uly = 0;
+                uint32_t uls = 0, ult = 0, dsdx = 0, dtdy = 0;
+
 #ifdef F3DEX_GBI_2E
                 lrx = (int32_t)(C0(0, 24) << 8) >> 8;
                 lry = (int32_t)(C1(0, 24) << 8) >> 8;
@@ -1658,7 +1709,16 @@ void gfx_init(struct GfxWindowManagerAPI *wapi, struct GfxRenderingAPI *rapi, co
     gfx_rapi = rapi;
     gfx_wapi->init(game_name, start_in_fullscreen);
     gfx_rapi->init();
+}
 
+void gfx_deinit()
+{
+    gfx_texture_cache_drop();
+    gfx_color_combiner_cache_drop();
+    gfx_rapi->deinit();
+    gfx_wapi->deinit();
+    gfx_rapi = NULL;
+    gfx_wapi = NULL;
 }
 
 struct GfxRenderingAPI *gfx_get_current_rendering_api(void) {
