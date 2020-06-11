@@ -7,23 +7,10 @@
 #define _LANGUAGE_C
 #endif
 #include <PR/gbi.h>
-
-#ifdef __MINGW32__
 #define FOR_WINDOWS 1
-#else
-#define FOR_WINDOWS 0
-#endif
 
 #if FOR_WINDOWS
 #include <GL/glew.h>
-#include "SDL.h"
-#define GL_GLEXT_PROTOTYPES 1
-#include "SDL_opengl.h"
-#else
-#include <SDL2/SDL.h>
-#define GL_GLEXT_PROTOTYPES 1
-#include <SDL2/SDL_opengles2.h>
-#endif
 
 #include "gfx_cc.h"
 #include "gfx_rendering_api.h"
@@ -487,6 +474,12 @@ static void gfx_opengl_init(void) {
 static void gfx_opengl_on_resize(void) {
 }
 
+
+static void gfx_opengl_deinit(void) {
+    
+    glDeleteBuffers(1, &opengl_vbo);
+}
+
 static void gfx_opengl_start_frame(void) {
     frame_count++;
 
@@ -522,6 +515,7 @@ struct GfxRenderingAPI gfx_opengl_api = {
     gfx_opengl_set_use_alpha,
     gfx_opengl_draw_triangles,
     gfx_opengl_init,
+    gfx_opengl_deinit,
     gfx_opengl_on_resize,
     gfx_opengl_start_frame,
     gfx_opengl_end_frame,
