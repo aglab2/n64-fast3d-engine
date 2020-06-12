@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <Windows.h>
+
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
@@ -38,6 +40,8 @@ static GLuint opengl_vbo;
 
 static uint32_t frame_count;
 static uint32_t current_height;
+
+extern RECT gStatusRect;
 
 static bool gfx_opengl_z_is_from_0_to_1(void) {
     return false;
@@ -466,12 +470,12 @@ static void gfx_opengl_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_opengl_set_viewport(int x, int y, int width, int height) {
-    glViewport(x, y, width, height);
+    glViewport(x, y + gStatusRect.bottom - gStatusRect.top + 1, width, height);
     current_height = height;
 }
 
 static void gfx_opengl_set_scissor(int x, int y, int width, int height) {
-    glScissor(x, y, width, height);
+    glScissor(x, y + gStatusRect.bottom - gStatusRect.top + 1, width, height);
 }
 
 static void gfx_opengl_set_use_alpha(bool use_alpha) {
@@ -489,10 +493,6 @@ static void gfx_opengl_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_
 }
 
 static void gfx_opengl_init(void) {
-#if FOR_WINDOWS
-    glewInit();
-#endif
-    
     glGenBuffers(1, &opengl_vbo);
     
     glBindBuffer(GL_ARRAY_BUFFER, opengl_vbo);

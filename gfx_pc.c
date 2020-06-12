@@ -288,6 +288,7 @@ static struct ColorCombiner *gfx_lookup_or_create_color_combiner(uint32_t cc_id)
 
     if (64 == color_combiner_pool_size)
         gfx_color_combiner_cache_drop();
+
     struct ColorCombiner *comb = &color_combiner_pool[color_combiner_pool_size++];
     gfx_generate_cc(comb, cc_id);
     return prev_combiner = comb;
@@ -321,7 +322,8 @@ static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, ui
     if (gfx_texture_cache.pool_pos == sizeof(gfx_texture_cache.pool) / sizeof(struct TextureHashmapNode)) {
         // Pool is full. We just invalidate everything and start over.
         gfx_texture_cache_drop();
-        node = &gfx_texture_cache.hashmap[hash];
+        node = &gfx_texture_cache.hashmap[hash & 0x3ff];
+
         //puts("Clearing texture cache");
     }
     *node = &gfx_texture_cache.pool[gfx_texture_cache.pool_pos++];
@@ -1120,7 +1122,12 @@ static void gfx_sp_moveword(uint8_t index, uint16_t offset, uint32_t data) {
     }
 }
 
+static void gfx_dp_set_combine_mode(uint32_t rgb, uint32_t alpha);
 static void gfx_sp_texture(uint16_t sc, uint16_t tc, uint8_t level, uint8_t tile, uint8_t on) {
+    if (0 == on)
+    {
+        gfx_dp_set_combine_mode(color_comb(0, 0, 0, G_CCMUX_SHADE), color_comb(0, 0, 0, G_ACMUX_SHADE));
+    }
     rsp.texture_scaling_factor.s = sc;
     rsp.texture_scaling_factor.t = tc;
 }
@@ -1169,6 +1176,28 @@ static void gfx_dp_set_tile_size(uint8_t tile, uint16_t uls, uint16_t ult, uint1
         rdp.texture_tile.lrt = lrt;
         rdp.textures_changed[0] = true;
         rdp.textures_changed[1] = true;
+
+        uint32_t lrsizes = rdp.texture_tile.lrs + 1;
+        uint32_t lrsizet = rdp.texture_tile.lrt + 1;
+        if (lrsizes == 16 && lrsizet == 2)
+        {
+            // Get normal sizes for masks/maskt
+            uint32_t masksizes = 1 << rdp.texture_tile.cms;
+            uint32_t masksizet = 1 << rdp.texture_tile.cmt;
+            if (masksizes > lrsizes)
+            {
+                unsigned long index = 0;
+                _BitScanForward(&index, lrsizes);
+                rdp.texture_tile.cms = index;
+            }
+
+            if (masksizet > lrsizet)
+            {
+                unsigned long index = 0;
+                _BitScanForward(&index, lrsizet);
+                rdp.texture_tile.cmt = index;
+            }
+        }
     }
 }
 
@@ -1467,6 +1496,13 @@ static void gfx_dp_full_sync()
 }
 
 static void gfx_sp_set_other_mode(uint32_t shift, uint32_t num_bits, uint64_t mode) {
+    {
+        const uint32_t maskH = (((uint64_t)1 << 2) - 1) << 0x14;
+        if (!(rdp.other_mode_h & maskH) && mode == 0xC8113078)
+        {
+            mode = 0x00443078;
+        }
+    }
     uint64_t mask = (((uint64_t)1 << num_bits) - 1) << shift;
     uint64_t om = rdp.other_mode_l | ((uint64_t)rdp.other_mode_h << 32);
     om = (om & ~mask) | mode;
@@ -1715,6 +1751,9 @@ void gfx_deinit()
 {
     gfx_texture_cache_drop();
     gfx_color_combiner_cache_drop();
+    memset(&rdp, 0, sizeof(rdp));
+    memset(&rsp, 0, sizeof(rsp));
+    memset(&rendering_state, 0, sizeof(rendering_state));
     gfx_rapi->deinit();
     gfx_wapi->deinit();
     gfx_rapi = NULL;
