@@ -7,7 +7,7 @@
 #include "../gfx_opengl.h"
 #include "dwnd.h"
 
-#define RSPTHREAD
+// #define RSPTHREAD
 
 #ifdef RSPTHREAD
 #include <condition_variable>
