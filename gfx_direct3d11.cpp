@@ -705,12 +705,6 @@ static void gfx_d3d11_start_frame(void) {
     d3d.context->Unmap(d3d.per_frame_cb.Get(), 0);
 }
 
-static void gfx_d3d11_end_frame(void) {
-}
-
-static void gfx_d3d11_finish_render(void) {
-}
-
 } // namespace
 
 struct GfxRenderingAPI gfx_direct3d11_api = {
