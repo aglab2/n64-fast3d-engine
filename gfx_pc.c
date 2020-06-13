@@ -187,7 +187,7 @@ static struct GfxRenderingAPI *gfx_rapi;
 
 #include <time.h>
 static unsigned long get_time(void) {
-    return GetTickCount() * 1000;
+    return GetTickCount64() * 1000;
 }
 
 static void gfx_flush(void) {
