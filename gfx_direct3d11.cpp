@@ -524,7 +524,7 @@ static void gfx_d3d11_set_zmode_decal(bool zmode_decal) {
 static void gfx_d3d11_set_viewport(int x, int y, int width, int height) {
     D3D11_VIEWPORT viewport;
     viewport.TopLeftX = x;
-    viewport.TopLeftY = d3d.current_height - y - height;
+    viewport.TopLeftY = d3d.current_height - y - height + gStatusRect.bottom - gStatusRect.top;
     viewport.Width = width;
     viewport.Height = height;
     viewport.MinDepth = 0.0f;
@@ -536,9 +536,9 @@ static void gfx_d3d11_set_viewport(int x, int y, int width, int height) {
 static void gfx_d3d11_set_scissor(int x, int y, int width, int height) {
     D3D11_RECT rect;
     rect.left = x;
-    rect.top = d3d.current_height - y - height;
+    rect.top = d3d.current_height - y - height + gStatusRect.bottom - gStatusRect.top;
     rect.right = x + width;
-    rect.bottom = d3d.current_height - y;
+    rect.bottom = d3d.current_height - y + gStatusRect.bottom - gStatusRect.top;
 
     d3d.context->RSSetScissorRects(1, &rect);
 }
@@ -663,6 +663,17 @@ static void gfx_d3d11_on_resize(void) {
     create_render_target_views(true);
 }
 
+static void gfx_d3d11_init(void) {
+}
+
+static void gfx_d3d11_deinit(void) {
+    d3d.textures.clear();
+    for (int i = 0; i < 64; i++)
+        d3d.shader_program_pool[i] = {};
+
+    d3d = {};
+}
+
 static void gfx_d3d11_start_frame(void) {
     // Set render targets
 
@@ -706,8 +717,10 @@ struct GfxRenderingAPI gfx_direct3d11_api = {
     gfx_d3d11_load_shader,
     gfx_d3d11_create_and_load_new_shader,
     gfx_d3d11_lookup_shader,
+    gfx_d3d11_delete_shader,
     gfx_d3d11_shader_get_info,
     gfx_d3d11_new_texture,
+    gfx_d3d11_delete_texture,
     gfx_d3d11_select_texture,
     gfx_d3d11_upload_texture,
     gfx_d3d11_set_sampler_parameters,
@@ -719,10 +732,9 @@ struct GfxRenderingAPI gfx_direct3d11_api = {
     gfx_d3d11_set_use_alpha,
     gfx_d3d11_draw_triangles,
     gfx_d3d11_init,
+    gfx_d3d11_deinit,
     gfx_d3d11_on_resize,
-    gfx_d3d11_start_frame,
-    gfx_d3d11_end_frame,
-    gfx_d3d11_finish_render
+    gfx_d3d11_start_frame
 };
 
 #endif

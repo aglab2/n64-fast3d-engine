@@ -5,13 +5,7 @@
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
-/*
-#define WIDTH 1280
-#define HEIGHT 960
-*/
-
-#define WIDTH 800
-#define HEIGHT 600
+#include "../gfx_screen_config.h"
 
 static char pluginNameW[] = "LINK's Renderer";
 
@@ -37,8 +31,8 @@ static void resizeWindow()
 {
     RECT windowRect;
 
-    auto width = WIDTH;
-    auto height = HEIGHT;
+    auto width = DESIRED_SCREEN_WIDTH;
+    auto height = DESIRED_SCREEN_HEIGHT;
 
     GetClientRect(GfxInfo.hWnd, &windowRect);
     GetWindowRect(GfxInfo.hStatusBar, &gStatusRect);
@@ -311,8 +305,8 @@ void dwnd_main_loop(void (*run_one_game_iter)(void))
 
 void dwnd_get_dimensions(uint32_t* width, uint32_t* height)
 {
-    *width = WIDTH;
-    *height = HEIGHT;
+    *width = DESIRED_SCREEN_WIDTH;
+    *height = DESIRED_SCREEN_HEIGHT;
 }
 
 void dwnd_handle_events(void)

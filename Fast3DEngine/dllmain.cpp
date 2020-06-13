@@ -3,7 +3,7 @@
 #include "Gfx #1.3.h"
 
 #include "../gfx_pc.h"
-// #include "../gfx_direct3d11.h"
+#include "../gfx_direct3d11.h"
 #include "../gfx_opengl.h"
 #include "dwnd.h"
 
@@ -30,8 +30,8 @@ class InitOperation : public Operation
 public:
     virtual bool execute() override
     {
-        //    gfx_init(&gfx_d3d11_dxgi_api, &gfx_direct3d11_api, "SM64");
-        gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
+        gfx_init(&gfx_d3d11_dxgi_api, &gfx_direct3d11_api, "SM64");
+        // gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
         return true;
     }
 };
@@ -60,6 +60,7 @@ public:
     }
 };
 
+#ifdef RSPTHREAD
 static std::unique_ptr<Operation> gOperation;
 static std::condition_variable gOperationCV;
 static std::mutex gOperationMutex;
@@ -83,6 +84,7 @@ static void RSPThread()
     } 
     while (running);
 }
+#endif
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,

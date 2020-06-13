@@ -42,6 +42,15 @@
     <ClInclude Include="dwnd.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\gfx_direct3d_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gfx_direct3d11.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gfx_direct3d12.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
@@ -54,6 +63,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\gfx_opengl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gfx_direct3d11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gfx_direct3d_common.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
