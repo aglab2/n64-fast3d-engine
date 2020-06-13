@@ -129,6 +129,8 @@ static struct {
     D3D_PRIMITIVE_TOPOLOGY last_primitive_topology = D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 } d3d;
 
+extern "C" RECT gStatusRect;
+
 static LARGE_INTEGER last_time, accumulated_time, frequency;
 
 static void create_render_target_views(bool is_resize) {

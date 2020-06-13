@@ -178,8 +178,6 @@ static struct RenderingState {
 
 struct GfxDimensions gfx_current_dimensions;
 
-static bool dropped_frame;
-
 static float buf_vbo[MAX_BUFFERED * (26 * 3)]; // 3 vertices in a triangle and 26 floats per vtx
 static size_t buf_vbo_len;
 static size_t buf_vbo_num_tris;
@@ -500,7 +498,6 @@ static void import_texture_i8(int tile) {
     gfx_rapi->upload_texture(rgba32_buf, width, height);
 }
 
-
 static void import_texture_ci4(int tile) {
     uint8_t rgba32_buf[32768];
     
@@ -817,7 +814,7 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx) {
         // The whole triangle lies outside the visible area
         return;
     }
-    
+
     if ((rsp.geometry_mode & G_CULL_BOTH) != 0) {
         float dx1 = v1->x / (v1->w) - v2->x / (v2->w);
         float dy1 = v1->y / (v1->w) - v2->y / (v2->w);
@@ -1152,6 +1149,7 @@ static void gfx_dp_set_texture_image(uint32_t format, uint32_t size, uint32_t wi
 }
 
 static void gfx_dp_set_tile(uint8_t fmt, uint32_t siz, uint32_t line, uint32_t tmem, uint8_t tile, uint32_t palette, uint32_t cmt, uint32_t maskt, uint32_t shiftt, uint32_t cms, uint32_t masks, uint32_t shifts) {
+    
     if (tile == G_TX_RENDERTILE) {
         SUPPORT_CHECK(palette == 0); // palette should set upper 4 bits of color index in 4b mode
         rdp.texture_tile.fmt = fmt;
@@ -1694,6 +1692,7 @@ static void gfx_run_dl(Gfx* cmd, int dlistSize) {
                 dsdx = C1(16, 16);
                 dtdy = C1(0, 16);
 #endif
+
                 gfx_dp_texture_rectangle(ulx, uly, lrx, lry, tile, uls, ult, dsdx, dtdy, opcode == G_TEXRECTFLIP);
                 break;
             }

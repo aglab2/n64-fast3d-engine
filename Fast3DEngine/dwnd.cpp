@@ -203,81 +203,6 @@ void dwnd_init(const char* game_name)
     resizeWindow();
 }
 
-/*
-void dwnd_init(const char* game_name)
-{
-    int pixelFormat;
-
-    PIXELFORMATDESCRIPTOR pfd = {
-        sizeof(PIXELFORMATDESCRIPTOR),    // size of this pfd
-        1,                                // version number
-        PFD_DRAW_TO_WINDOW |              // support window
-        PFD_SUPPORT_OPENGL |              // support OpenGL
-        PFD_DOUBLEBUFFER,                 // double buffered
-        PFD_TYPE_RGBA,                    // RGBA type
-        32,								  // color depth
-        0, 0, 0, 0, 0, 0,                 // color bits ignored
-        0,                                // no alpha buffer
-        0,                                // shift bit ignored
-        0,                                // no accumulation buffer
-        0, 0, 0, 0,                       // accum bits ignored
-        32,								  // z-buffer
-        0,                                // no stencil buffer
-        0,                                // no auxiliary buffer
-        PFD_MAIN_PLANE,                   // main layer
-        0,                                // reserved
-        0, 0, 0                           // layer masks ignored
-    };
-
-    if (GfxInfo.hWnd == NULL)
-        GfxInfo.hWnd = GetActiveWindow();
-
-    if ((hDC = GetDC(GfxInfo.hWnd)) == NULL) {
-        MessageBox(GfxInfo.hWnd, "Error while getting a device context!", pluginNameW, MB_ICONERROR | MB_OK);
-        return;
-    }
-
-    if ((pixelFormat = ChoosePixelFormat(hDC, &pfd)) == 0) {
-        MessageBox(GfxInfo.hWnd, "Unable to find a suitable pixel format!", pluginNameW, MB_ICONERROR | MB_OK);
-        RomClosed();
-        return;
-    }
-
-    if ((SetPixelFormat(hDC, pixelFormat, &pfd)) == FALSE) {
-        MessageBox(GfxInfo.hWnd, "Error while setting pixel format!", pluginNameW, MB_ICONERROR | MB_OK);
-        RomClosed();
-        return;
-    }
-
-    if ((hRC = wglCreateContext(hDC)) == NULL) {
-        MessageBox(GfxInfo.hWnd, "Error while creating OpenGL context!", pluginNameW, MB_ICONERROR | MB_OK);
-        RomClosed();
-        return;
-    }
-
-    if ((wglMakeCurrent(hDC, hRC)) == FALSE) {
-        MessageBox(GfxInfo.hWnd, "Error while making OpenGL context current!", pluginNameW, MB_ICONERROR | MB_OK);
-        RomClosed();
-        return;
-    }
-
-    glewInit();
-
-    PFNWGLGETEXTENSIONSSTRINGARBPROC wglGetExtensionsStringARB =
-        (PFNWGLGETEXTENSIONSSTRINGARBPROC)wglGetProcAddress("wglGetExtensionsStringARB");
-
-    if (wglGetExtensionsStringARB != NULL) {
-        const char* wglextensions = wglGetExtensionsStringARB(hDC);
-        if (strstr(wglextensions, "WGL_EXT_swap_control") != nullptr) {
-            PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT = (PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
-            wglSwapIntervalEXT(0);
-        }
-    }
-
-    resizeWindow();
-}
-*/
-
 void dwnd_deinit(void)
 {
     wglMakeCurrent(NULL, NULL);
@@ -293,30 +218,10 @@ void dwnd_deinit(void)
     }
 }
 
-void dwnd_set_keyboard_callbacks(bool (*on_key_down)(int scancode), bool (*on_key_up)(int scancode), void (*on_all_keys_up)(void))
-{
-
-}
-
-void dwnd_main_loop(void (*run_one_game_iter)(void))
-{
-
-}
-
 void dwnd_get_dimensions(uint32_t* width, uint32_t* height)
 {
     *width = DESIRED_SCREEN_WIDTH;
     *height = DESIRED_SCREEN_HEIGHT;
-}
-
-void dwnd_handle_events(void)
-{
-
-}
-
-bool dwnd_start_frame(void)
-{
-    return true;
 }
 
 void dwnd_swap_buffers_begin(void)
@@ -341,11 +246,7 @@ struct GfxWindowManagerAPI gfx_dwnd =
 {
     dwnd_init,
     dwnd_deinit,
-    dwnd_set_keyboard_callbacks,
-    dwnd_main_loop,
     dwnd_get_dimensions,
-    dwnd_handle_events,
-    dwnd_start_frame,
     dwnd_swap_buffers_begin,
     dwnd_swap_buffers_end,
     dwnd_get_time,
