@@ -18,7 +18,7 @@
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
-#include <PR/gbi.h>
+#include "gbi.h"
 
 #include "gfx_window_manager_api.h"
 #include "gfx_rendering_api.h"
@@ -29,9 +29,6 @@
 #define DECLARE_GFX_DXGI_FUNCTIONS
 #include "gfx_dxgi.h"
 
-#define WINCLASS_NAME L"N64GAME"
-#define GFX_API_NAME "DirectX"
-
 #ifdef VERSION_EU
 #define FRAME_INTERVAL_US_NUMERATOR 40000
 #define FRAME_INTERVAL_US_DENOMINATOR 1
@@ -39,6 +36,8 @@
 #define FRAME_INTERVAL_US_NUMERATOR 100000
 #define FRAME_INTERVAL_US_DENOMINATOR 3
 #endif
+
+#include "Fast3DEngine/plugin.h"
 
 using namespace Microsoft::WRL; // For ComPtr
 
@@ -73,7 +72,7 @@ static struct {
     bool (*on_key_down)(int scancode);
     bool (*on_key_up)(int scancode);
     void (*on_all_keys_up)(void);
-} dxgi;
+} dxgi = {};
 
 static void load_dxgi_library(void) {
     dxgi.dxgi_module = LoadLibraryW(L"dxgi.dll");
@@ -198,117 +197,31 @@ static void gfx_dxgi_on_resize(void) {
         gfx_get_current_rendering_api()->on_resize();
 
         DXGI_SWAP_CHAIN_DESC1 desc1;
-        ThrowIfFailed(dxgi.swap_chain->GetDesc1(&desc1));
+        ThrowIfFailed(dxgi.swap_chain->GetDesc1(&desc1), "GetDesc1 on_resize");
         dxgi.current_width = desc1.Width;
         dxgi.current_height = desc1.Height;
     }
 }
 
-static void onkeydown(WPARAM w_param, LPARAM l_param) {
-    int key = ((l_param >> 16) & 0x1ff);
-    if (dxgi.on_key_down != nullptr) {
-        dxgi.on_key_down(key);
-    }
-}
-static void onkeyup(WPARAM w_param, LPARAM l_param) {
-    int key = ((l_param >> 16) & 0x1ff);
-    if (dxgi.on_key_up != nullptr) {
-        dxgi.on_key_up(key);
-    }
-}
-
-static LRESULT CALLBACK gfx_dxgi_wnd_proc(HWND h_wnd, UINT message, WPARAM w_param, LPARAM l_param) {
-    switch (message) {
-        case WM_SIZE:
-            gfx_dxgi_on_resize();
-            break;
-        case WM_DESTROY:
-            exit(0);
-        case WM_PAINT:
-            if (dxgi.showing_error) {
-                return DefWindowProcW(h_wnd, message, w_param, l_param);
-            } else {
-                if (dxgi.run_one_game_iter != nullptr) {
-                    dxgi.run_one_game_iter();
-                }
-            }
-            break;
-        case WM_ACTIVATEAPP:
-            if (dxgi.on_all_keys_up != nullptr) {
-                dxgi.on_all_keys_up();
-            }
-            break;
-        case WM_KEYDOWN:
-            onkeydown(w_param, l_param);
-            break;
-        case WM_KEYUP:
-            onkeyup(w_param, l_param);
-            break;
-        case WM_SYSKEYDOWN:
-            if ((w_param == VK_RETURN) && ((l_param & 1 << 30) == 0)) {
-                toggle_borderless_window_full_screen(!dxgi.is_full_screen, true);
-                break;
-            } else {
-                return DefWindowProcW(h_wnd, message, w_param, l_param);
-            }
-        default:
-            return DefWindowProcW(h_wnd, message, w_param, l_param);
-    }
-    return 0;
-}
-
 static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
+    Plugin::resize(DESIRED_SCREEN_WIDTH, DESIRED_SCREEN_HEIGHT);
+
     LARGE_INTEGER qpc_init, qpc_freq;
     QueryPerformanceCounter(&qpc_init);
     QueryPerformanceFrequency(&qpc_freq);
     dxgi.qpc_init = qpc_init.QuadPart;
     dxgi.qpc_freq = qpc_freq.QuadPart;
 
-    // Prepare window title
-
-    char title[512];
-    wchar_t w_title[512];
-    int len = sprintf(title, "%s (%s)", game_name, GFX_API_NAME);
-    mbstowcs(w_title, title, len + 1);
-    dxgi.game_name = game_name;
-
-    // Create window
-    WNDCLASSEXW wcex;
-
-    wcex.cbSize = sizeof(WNDCLASSEX);
-
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = gfx_dxgi_wnd_proc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = nullptr;
-    wcex.hIcon          = nullptr;
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    wcex.lpszMenuName   = nullptr;
-    wcex.lpszClassName  = WINCLASS_NAME;
-    wcex.hIconSm        = nullptr;
-
-    ATOM winclass = RegisterClassExW(&wcex);
-
-
-    run_as_dpi_aware([&] () {
-        // We need to be dpi aware when calculating the size
-        RECT wr = {0, 0, DESIRED_SCREEN_WIDTH, DESIRED_SCREEN_HEIGHT};
-        AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-
-        dxgi.h_wnd = CreateWindowW(WINCLASS_NAME, w_title, WS_OVERLAPPEDWINDOW,
-            CW_USEDEFAULT, 0, wr.right - wr.left, wr.bottom - wr.top, nullptr, nullptr, nullptr, nullptr);
-    });
-
+    dxgi.h_wnd = Plugin::hWnd();
     load_dxgi_library();
-
-    ShowWindow(dxgi.h_wnd, SW_SHOW);
-    UpdateWindow(dxgi.h_wnd);
 
     if (start_in_fullscreen) {
         toggle_borderless_window_full_screen(true, false);
     }
+}
+
+static void gfx_dxgi_deinit() {
+    dxgi = {};
 }
 
 static void gfx_dxgi_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen)) {
@@ -325,27 +238,9 @@ static void gfx_dxgi_set_keyboard_callbacks(bool (*on_key_down)(int scancode), b
     dxgi.on_all_keys_up = on_all_keys_up;
 }
 
-static void gfx_dxgi_main_loop(void (*run_one_game_iter)(void)) {
-    dxgi.run_one_game_iter = run_one_game_iter;
-
-    MSG msg;
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-}
-
 static void gfx_dxgi_get_dimensions(uint32_t *width, uint32_t *height) {
     *width = dxgi.current_width;
     *height = dxgi.current_height;
-}
-
-static void gfx_dxgi_handle_events(void) {
-    /*MSG msg;
-    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }*/
 }
 
 static uint64_t qpc_to_us(uint64_t qpc) {
@@ -353,6 +248,7 @@ static uint64_t qpc_to_us(uint64_t qpc) {
 }
 
 static bool gfx_dxgi_start_frame(void) {
+    /*
     DXGI_FRAME_STATISTICS stats;
     if (dxgi.swap_chain->GetFrameStatistics(&stats) == S_OK && (stats.SyncRefreshCount != 0 || stats.SyncQPCTime.QuadPart != 0ULL)) {
         {
@@ -466,6 +362,7 @@ static bool gfx_dxgi_start_frame(void) {
     } else {
         dxgi.length_in_vsync_frames = 2;
     }
+    */
 
     return true;
 }
@@ -510,9 +407,9 @@ static double gfx_dxgi_get_time(void) {
 
 void gfx_dxgi_create_factory_and_device(bool debug, int d3d_version, bool (*create_device_fn)(IDXGIAdapter1 *adapter, bool test_only)) {
     if (dxgi.CreateDXGIFactory2 != nullptr) {
-        ThrowIfFailed(dxgi.CreateDXGIFactory2(debug ? DXGI_CREATE_FACTORY_DEBUG : 0, __uuidof(IDXGIFactory2), &dxgi.factory));
+        ThrowIfFailed(dxgi.CreateDXGIFactory2(debug ? DXGI_CREATE_FACTORY_DEBUG : 0, __uuidof(IDXGIFactory2), &dxgi.factory), "CreateDXGIFactory2");
     } else {
-        ThrowIfFailed(dxgi.CreateDXGIFactory1(__uuidof(IDXGIFactory2), &dxgi.factory));
+        ThrowIfFailed(dxgi.CreateDXGIFactory1(__uuidof(IDXGIFactory2), &dxgi.factory), "CreateDXGIFactory1");
     }
 
     ComPtr<IDXGIAdapter1> adapter;
@@ -527,12 +424,6 @@ void gfx_dxgi_create_factory_and_device(bool debug, int d3d_version, bool (*crea
         }
     }
     create_device_fn(adapter.Get(), false);
-
-    char title[512];
-    wchar_t w_title[512];
-    int len = sprintf(title, "%s (Direct3D %d)", dxgi.game_name.c_str(), d3d_version);
-    mbstowcs(w_title, title, len + 1);
-    SetWindowTextW(dxgi.h_wnd, w_title);
 }
 
 ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
@@ -560,18 +451,19 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
 
     ComPtr<IDXGISwapChain2> swap_chain2;
     if (dxgi.swap_chain->QueryInterface(__uuidof(IDXGISwapChain2), &swap_chain2) == S_OK) {
-        ThrowIfFailed(swap_chain2->SetMaximumFrameLatency(1));
+        ThrowIfFailed(swap_chain2->SetMaximumFrameLatency(1), "SetMaximumFrameLatency");
         dxgi.waitable_object = swap_chain2->GetFrameLatencyWaitableObject();
         WaitForSingleObject(dxgi.waitable_object, INFINITE);
     } else {
         ComPtr<IDXGIDevice1> device1;
-        ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&device1)));
-        ThrowIfFailed(device1->SetMaximumFrameLatency(1));
+        ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&device1)), "QueryInterface");
+        ThrowIfFailed(device1->SetMaximumFrameLatency(1), "SetMaximumFrameLatency");
     }
 
-    ThrowIfFailed(dxgi.swap_chain->GetDesc1(&swap_chain_desc));
+
+    ThrowIfFailed(dxgi.swap_chain->GetDesc1(&swap_chain_desc), "GetDesc1 swap_chain");
     dxgi.current_width = swap_chain_desc.Width;
-    dxgi.current_height = swap_chain_desc.Height;
+    dxgi.current_height = swap_chain_desc.Height - Plugin::statusBarHeight();
 
     return dxgi.swap_chain;
 }
@@ -580,9 +472,12 @@ HWND gfx_dxgi_get_h_wnd(void) {
     return dxgi.h_wnd;
 }
 
-void ThrowIfFailed(HRESULT res) {
+void ThrowIfFailed(HRESULT res, const char* message) {
     if (FAILED(res)) {
-        fprintf(stderr, "Error: 0x%08X\n", res);
+        char full_message[256];
+        sprintf(full_message, "%s\n\nHRESULT: 0x%08X", message, res);
+        dxgi.showing_error = true;
+        MessageBox(Plugin::hWnd(), full_message, "Error", MB_OK | MB_ICONERROR);
         throw res;
     }
 }
@@ -599,12 +494,10 @@ void ThrowIfFailed(HRESULT res, HWND h_wnd, const char *message) {
 
 struct GfxWindowManagerAPI gfx_dxgi_api = {
     gfx_dxgi_init,
-    gfx_dxgi_set_keyboard_callbacks,
+    gfx_dxgi_deinit,
     gfx_dxgi_set_fullscreen_changed_callback,
     gfx_dxgi_set_fullscreen,
-    gfx_dxgi_main_loop,
     gfx_dxgi_get_dimensions,
-    gfx_dxgi_handle_events,
     gfx_dxgi_start_frame,
     gfx_dxgi_swap_buffers_begin,
     gfx_dxgi_swap_buffers_end,

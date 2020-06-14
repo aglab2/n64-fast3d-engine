@@ -31,6 +31,8 @@ struct GfxRenderingAPI {
     void (*deinit)(void);
     void (*on_resize)(void);
     void (*start_frame)(void);
+    void (*end_frame)(void);
+    void (*finish_render)(void);
 };
 
 #endif

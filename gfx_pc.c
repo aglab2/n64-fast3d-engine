@@ -16,6 +16,8 @@
 #include "gfx_rendering_api.h"
 #include "gfx_screen_config.h"
 
+#include "Fast3DEngine/plugin.h"
+
 #include <windows.h>
 
 #include "Fast3DEngine/Gfx #1.3.h"
@@ -40,9 +42,6 @@
 
 #define _FIXED2FLOAT( v, b ) \
 	((f32)v * FIXED2FLOATRECIP##b)
-
-
-extern GFX_INFO GfxInfo;
 
 static uint32_t gSegments[16];
 
@@ -177,6 +176,8 @@ static struct RenderingState {
 } rendering_state;
 
 struct GfxDimensions gfx_current_dimensions;
+
+static bool dropped_frame;
 
 static float buf_vbo[MAX_BUFFERED * (26 * 3)]; // 3 vertices in a triangle and 26 floats per vtx
 static size_t buf_vbo_len;
@@ -357,6 +358,8 @@ static int idx_byteswap(int idx)
     case 3:
         return rounded;
     }
+
+    abort();
 }
 
 static void import_texture_rgba16(int tile) {
@@ -1543,7 +1546,7 @@ static void gfx_dp_set_color_image(uint32_t format, uint32_t size, uint32_t widt
 
 static void gfx_dp_full_sync()
 {
-    *GfxInfo.MI_INTR_REG |= MI_INTR_DP;
+    *plugin_gfx_info()->MI_INTR_REG |= MI_INTR_DP;
 }
 
 static void gfx_sp_set_other_mode(uint32_t shift, uint32_t num_bits, uint64_t mode) {
@@ -1565,7 +1568,7 @@ static inline void *seg_addr(uintptr_t w1)
 {
     int seg = (w1 >> 24) & 0x0f;
     int addr = w1 & 0xffffff;
-    return (void*) &GfxInfo.RDRAM[gSegments[seg] + addr];
+    return (void*) &plugin_gfx_info()->RDRAM[gSegments[seg] + addr];
 }
 
 #define C0(pos, width) ((cmd->words.w0 >> (pos)) & ((1U << width) - 1))
@@ -1828,6 +1831,12 @@ void gfx_start_frame(void) {
 
 void gfx_run(Gfx *commands, int dlistSize) {
     gfx_sp_reset();
+
+    if (!gfx_wapi->start_frame()) {
+        dropped_frame = true;
+        return;
+    }
+    dropped_frame = false;
     
     //puts("New frame");
     

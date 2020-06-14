@@ -1,51 +1,13 @@
 #include "dwnd.h"
-#include <Windows.h>
+#include "plugin.h"
 
-#include "Gfx #1.3.h"
 #include <GL/glew.h>
 #include <GL/wglew.h>
 
 #include "../gfx_screen_config.h"
 
-static char pluginNameW[] = "LINK's Renderer";
-
-HGLRC	hRC;
-HDC		hDC;
-
-extern "C" GFX_INFO GfxInfo;
-
-typedef const char* (WINAPI* PFNWGLGETEXTENSIONSSTRINGARBPROC) (HDC hdc);
-typedef HGLRC(WINAPI* PFNWGLCREATECONTEXTATTRIBSARBPROC) (HDC hDC, HGLRC hShareContext, const int* attribList);
-typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC) (int interval);
-
-#define WGL_CONTEXT_MAJOR_VERSION_ARB     0x2091
-#define WGL_CONTEXT_MINOR_VERSION_ARB     0x2092
-
-#define WGL_CONTEXT_PROFILE_MASK_ARB      0x9126
-#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB  0x00000001
-
-extern "C" RECT gStatusRect;
-RECT gStatusRect;
-
-static void resizeWindow()
-{
-    RECT windowRect;
-
-    auto width = DESIRED_SCREEN_WIDTH;
-    auto height = DESIRED_SCREEN_HEIGHT;
-
-    GetClientRect(GfxInfo.hWnd, &windowRect);
-    GetWindowRect(GfxInfo.hStatusBar, &gStatusRect);
-
-    auto offset = (gStatusRect.bottom - gStatusRect.top);
-    windowRect.right = windowRect.left + width - 1;
-    windowRect.bottom = windowRect.top + height - 1 + offset;
-
-    AdjustWindowRect(&windowRect, GetWindowLong(GfxInfo.hWnd, GWL_STYLE), GetMenu(GfxInfo.hWnd) != NULL);
-
-    SetWindowPos(GfxInfo.hWnd, NULL, 0, 0, windowRect.right - windowRect.left + 1,
-        windowRect.bottom - windowRect.top + 2, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOMOVE);
-}
+static HGLRC hRC;
+static HDC   hDC;
 
 static bool initExtensions = false;
 
@@ -55,6 +17,8 @@ init_opengl_extensions(void)
     if (initExtensions)
         return;
 
+    auto pluginNameW = Plugin::name();
+    auto& gfxInfo = Plugin::info();
     initExtensions = true;
 
     // Before we can load extensions, we need a dummy OpenGL context, created using a dummy window.
@@ -71,7 +35,7 @@ init_opengl_extensions(void)
     };
 
     if (!RegisterClassA(&window_class)) {
-        MessageBox(GfxInfo.hWnd, "Failed to register dummy OpenGL window!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Failed to register dummy OpenGL window!", pluginNameW, MB_ICONERROR | MB_OK);
     }
 
     HWND dummy_window = CreateWindowExA(
@@ -89,7 +53,7 @@ init_opengl_extensions(void)
         0);
 
     if (!dummy_window) {
-        MessageBox(GfxInfo.hWnd, "Failed to create dummy window!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Failed to create dummy window!", pluginNameW, MB_ICONERROR | MB_OK);
     }
 
     HDC dummy_dc = GetDC(dummy_window);
@@ -117,22 +81,22 @@ init_opengl_extensions(void)
 
     int pixel_format = ChoosePixelFormat(dummy_dc, &pfd);
     if (!pixel_format) {
-        MessageBox(GfxInfo.hWnd, "Unable to find a suitable pixel format!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Unable to find a suitable pixel format!", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
     if (!SetPixelFormat(dummy_dc, pixel_format, &pfd)) {
-        MessageBox(GfxInfo.hWnd, "Error while setting pixel format!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Error while setting pixel format!", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
     HGLRC dummy_context = wglCreateContext(dummy_dc);
     if (!dummy_context) {
-        MessageBox(GfxInfo.hWnd, "Error while creating OpenGL context!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Error while creating OpenGL context!", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
     if (!wglMakeCurrent(dummy_dc, dummy_context)) {
-        MessageBox(GfxInfo.hWnd, "Error while making OpenGL context current!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Error while making OpenGL context current!", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
@@ -146,9 +110,11 @@ init_opengl_extensions(void)
 }
 
 
-void dwnd_init(const char* game_name)
+void dwnd_init(const char* game_name, bool start_in_fullscreen)
 {
     init_opengl_extensions();
+    auto pluginNameW = Plugin::name();
+    auto& gfxInfo = Plugin::info();
 
     // Now we can choose a pixel format the modern way, using wglChoosePixelFormatARB.
     int pixel_format_attribs[] = 
@@ -166,11 +132,11 @@ void dwnd_init(const char* game_name)
         0
     };
 
-    if (GfxInfo.hWnd == NULL)
-        GfxInfo.hWnd = GetActiveWindow();
+    if (gfxInfo.hWnd == NULL)
+        gfxInfo.hWnd = GetActiveWindow();
 
-    if ((hDC = GetDC(GfxInfo.hWnd)) == NULL) {
-        MessageBox(GfxInfo.hWnd, "Error while getting a device context!", pluginNameW, MB_ICONERROR | MB_OK);
+    if ((hDC = GetDC(gfxInfo.hWnd)) == NULL) {
+        MessageBox(gfxInfo.hWnd, "Error while getting a device context!", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
@@ -178,33 +144,35 @@ void dwnd_init(const char* game_name)
     UINT num_formats;
     wglChoosePixelFormatARB(hDC, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
     if (!num_formats) {
-        MessageBox(GfxInfo.hWnd, "Failed to set the OpenGL 3.3 pixel format.", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Failed to set the OpenGL 3.3 pixel format.", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
     PIXELFORMATDESCRIPTOR pfd;
     DescribePixelFormat(hDC, pixel_format, sizeof(pfd), &pfd);
     if (!SetPixelFormat(hDC, pixel_format, &pfd)) {
-        MessageBox(GfxInfo.hWnd, "Failed to set the OpenGL 3.3 pixel format.", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Failed to set the OpenGL 3.3 pixel format.", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
     if ((hRC = wglCreateContext(hDC)) == NULL) {
-        MessageBox(GfxInfo.hWnd, "Error while creating OpenGL context!", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Error while creating OpenGL context!", pluginNameW, MB_ICONERROR | MB_OK);
         RomClosed();
         return;
     }
 
     if (!wglMakeCurrent(hDC, hRC)) {
-        MessageBox(GfxInfo.hWnd, "Failed to activate OpenGL 3.3 rendering context.", pluginNameW, MB_ICONERROR | MB_OK);
+        MessageBox(gfxInfo.hWnd, "Failed to activate OpenGL 3.3 rendering context.", pluginNameW, MB_ICONERROR | MB_OK);
         return;
     }
 
-    resizeWindow();
+    Plugin::resize(DESIRED_SCREEN_WIDTH, DESIRED_SCREEN_HEIGHT);
 }
 
 void dwnd_deinit(void)
 {
+    auto& gfxInfo = Plugin::info();
+
     wglMakeCurrent(NULL, NULL);
 
     if (hRC != NULL) {
@@ -213,9 +181,18 @@ void dwnd_deinit(void)
     }
 
     if (hDC != NULL) {
-        ReleaseDC(GfxInfo.hWnd, hDC);
+        ReleaseDC(gfxInfo.hWnd, hDC);
         hDC = NULL;
     }
+}
+
+void dwnd_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen))
+{
+
+}
+
+void dwnd_set_fullscreen(bool enable) {
+
 }
 
 void dwnd_get_dimensions(uint32_t* width, uint32_t* height)
@@ -232,11 +209,6 @@ void dwnd_swap_buffers_begin(void)
         SwapBuffers(hDC);
 }
 
-void dwnd_swap_buffers_end(void)
-{
-
-}
-
 double dwnd_get_time(void)
 {
     return 0.;
@@ -246,8 +218,11 @@ struct GfxWindowManagerAPI gfx_dwnd =
 {
     dwnd_init,
     dwnd_deinit,
+    dwnd_set_fullscreen_changed_callback,
+    dwnd_set_fullscreen,
     dwnd_get_dimensions,
+    []() { return true; }, /* start_frame */
     dwnd_swap_buffers_begin,
-    dwnd_swap_buffers_end,
+    []() { } /* dwnd_swap_buffers_end */,
     dwnd_get_time,
 };

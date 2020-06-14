@@ -15,7 +15,7 @@
 #ifndef _LANGUAGE_C
 #define _LANGUAGE_C
 #endif
-#include <PR/gbi.h>
+#include "gbi.h"
 
 #include "gfx_cc.h"
 #include "gfx_window_manager_api.h"
@@ -26,6 +26,8 @@
 #include "gfx_dxgi.h"
 
 #include "gfx_screen_config.h"
+
+#include "Fast3DEngine/plugin.h"
 
 #define THREE_POINT_FILTERING 0
 #define DEBUG_D3D 0
@@ -133,25 +135,20 @@ extern "C" RECT gStatusRect;
 
 static LARGE_INTEGER last_time, accumulated_time, frequency;
 
-static void create_render_target_views(bool is_resize) {
+static void create_render_target_views(void) {
+    // Release previous stuff (if any)
+
+    d3d.backbuffer_view.Reset();
+    d3d.depth_stencil_view.Reset();
+
+    // Resize swap chain buffers
+
     DXGI_SWAP_CHAIN_DESC1 desc1;
-
-    if (is_resize) {
-        // Release previous stuff (if any)
-
-        d3d.backbuffer_view.Reset();
-        d3d.depth_stencil_view.Reset();
-
-        // Resize swap chain buffers
-
-        ThrowIfFailed(d3d.swap_chain->GetDesc1(&desc1));
-        ThrowIfFailed(d3d.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, desc1.Flags),
-                      gfx_dxgi_get_h_wnd(), "Failed to resize IDXGISwapChain buffers.");
-    }
-
-    // Get new size
-
-    ThrowIfFailed(d3d.swap_chain->GetDesc1(&desc1));
+    ThrowIfFailed(d3d.swap_chain->GetDesc1(&desc1), "GetDesc1 - 1");
+    ThrowIfFailed(d3d.swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, desc1.Flags),
+                  gfx_dxgi_get_h_wnd(), "Failed to resize IDXGISwapChain buffers.");
+    
+    ThrowIfFailed(d3d.swap_chain->GetDesc1(&desc1), "GetDesc1 - 2");
 
     // Create back buffer
 
@@ -180,8 +177,8 @@ static void create_render_target_views(bool is_resize) {
     depth_stencil_texture_desc.MiscFlags = 0;
 
     ComPtr<ID3D11Texture2D> depth_stencil_texture;
-    ThrowIfFailed(d3d.device->CreateTexture2D(&depth_stencil_texture_desc, nullptr, depth_stencil_texture.GetAddressOf()));
-    ThrowIfFailed(d3d.device->CreateDepthStencilView(depth_stencil_texture.Get(), nullptr, d3d.depth_stencil_view.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateTexture2D(&depth_stencil_texture_desc, nullptr, depth_stencil_texture.GetAddressOf()), "CreateTexture2D renderTarget");
+    ThrowIfFailed(d3d.device->CreateDepthStencilView(depth_stencil_texture.Get(), nullptr, d3d.depth_stencil_view.GetAddressOf()), "CreateDepthStencilView");
 
     // Save resolution
 
@@ -196,14 +193,14 @@ static void gfx_d3d11_init(void) {
         ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()), gfx_dxgi_get_h_wnd(), "d3d11.dll not found");
     }
     d3d.D3D11CreateDevice = (PFN_D3D11_CREATE_DEVICE)GetProcAddress(d3d.d3d11_module, "D3D11CreateDevice");
-
+    
     // Load D3DCompiler_47.dll
     d3d.d3dcompiler_module = LoadLibraryW(L"D3DCompiler_47.dll");
     if (d3d.d3dcompiler_module == nullptr) {
         ThrowIfFailed(HRESULT_FROM_WIN32(GetLastError()), gfx_dxgi_get_h_wnd(), "D3DCompiler_47.dll not found");
     }
     d3d.D3DCompile = (pD3DCompile)GetProcAddress(d3d.d3dcompiler_module, "D3DCompile");
-
+    
     // Create D3D11 device
 
     gfx_dxgi_create_factory_and_device(DEBUG_D3D, 11, [](IDXGIAdapter1 *adapter, bool test_only) {
@@ -243,8 +240,8 @@ static void gfx_d3d11_init(void) {
 
     // Sample description to be used in back buffer and depth buffer
 
-    d3d.sample_description.Count = 1;
-    d3d.sample_description.Quality = 0;
+    d3d.sample_description.Count = SAMPLING_COUNT;
+    d3d.sample_description.Quality = SAMPLING_QUALITY;
 
     // Create the swap chain
     d3d.swap_chain = gfx_dxgi_create_swap_chain(d3d.device.Get());
@@ -258,7 +255,7 @@ static void gfx_d3d11_init(void) {
 
     // Create views
 
-    create_render_target_views(false);
+    create_render_target_views();
 
     // Create main vertex buffer
 
@@ -304,6 +301,13 @@ static void gfx_d3d11_init(void) {
     d3d.context->PSSetConstantBuffers(1, 1, d3d.per_draw_cb.GetAddressOf());
 }
 
+static void gfx_d3d11_deinit(void) {
+    d3d.textures.clear();
+    for (int i = 0; i < 64; i++)
+        d3d.shader_program_pool[i] = {};
+
+    d3d = {};
+}
 
 static bool gfx_d3d11_z_is_from_0_to_1(void) {
     return true;
@@ -322,7 +326,7 @@ static struct ShaderProgram *gfx_d3d11_create_and_load_new_shader(uint32_t shade
 
     char buf[4096];
     size_t len, num_floats;
-
+    
     gfx_direct3d_common_build_shader(buf, len, num_floats, cc_features, false, THREE_POINT_FILTERING);
 
     ComPtr<ID3DBlob> vs, ps;
@@ -350,8 +354,8 @@ static struct ShaderProgram *gfx_d3d11_create_and_load_new_shader(uint32_t shade
 
     struct ShaderProgramD3D11 *prg = &d3d.shader_program_pool[d3d.shader_program_pool_size++];
 
-    ThrowIfFailed(d3d.device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, prg->vertex_shader.GetAddressOf()));
-    ThrowIfFailed(d3d.device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, prg->pixel_shader.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateVertexShader(vs->GetBufferPointer(), vs->GetBufferSize(), nullptr, prg->vertex_shader.GetAddressOf()), "CreateVertexShader");
+    ThrowIfFailed(d3d.device->CreatePixelShader(ps->GetBufferPointer(), ps->GetBufferSize(), nullptr, prg->pixel_shader.GetAddressOf()), "CreatePixelShader");
 
     // Input Layout
 
@@ -369,7 +373,7 @@ static struct ShaderProgram *gfx_d3d11_create_and_load_new_shader(uint32_t shade
         ied[ied_index++] = { "INPUT", i, format, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 };
     }
 
-    ThrowIfFailed(d3d.device->CreateInputLayout(ied, ied_index, vs->GetBufferPointer(), vs->GetBufferSize(), prg->input_layout.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateInputLayout(ied, ied_index, vs->GetBufferPointer(), vs->GetBufferSize(), prg->input_layout.GetAddressOf()), "CreateInputLayout");
 
     // Blend state
 
@@ -390,7 +394,7 @@ static struct ShaderProgram *gfx_d3d11_create_and_load_new_shader(uint32_t shade
         blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
     }
 
-    ThrowIfFailed(d3d.device->CreateBlendState(&blend_desc, prg->blend_state.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateBlendState(&blend_desc, prg->blend_state.GetAddressOf()), "CreateBlendState");
 
     // Save some values
 
@@ -412,9 +416,13 @@ static struct ShaderProgram *gfx_d3d11_lookup_shader(uint32_t shader_id) {
     return nullptr;
 }
 
+static void gfx_d3d11_delete_shader(struct ShaderProgram* prg) {
+    *(struct ShaderProgramD3D11*) prg = {};
+}
+
 static void gfx_d3d11_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inputs, bool used_textures[2]) {
     struct ShaderProgramD3D11 *p = (struct ShaderProgramD3D11 *)prg;
-
+    
     *num_inputs = p->num_inputs;
     used_textures[0] = p->used_textures[0];
     used_textures[1] = p->used_textures[1];
@@ -423,6 +431,11 @@ static void gfx_d3d11_shader_get_info(struct ShaderProgram *prg, uint8_t *num_in
 static uint32_t gfx_d3d11_new_texture(void) {
     d3d.textures.resize(d3d.textures.size() + 1);
     return (uint32_t)(d3d.textures.size() - 1);
+}
+
+// TODO: this is wrong approach
+static void gfx_d3d11_delete_texture(uint32_t) {
+    d3d.textures.clear();
 }
 
 static void gfx_d3d11_select_texture(int tile, uint32_t texture_id) {
@@ -461,7 +474,7 @@ static void gfx_d3d11_upload_texture(const uint8_t *rgba32_buf, int width, int h
     resource_data.SysMemSlicePitch = resource_data.SysMemPitch * height;
 
     ComPtr<ID3D11Texture2D> texture;
-    ThrowIfFailed(d3d.device->CreateTexture2D(&texture_desc, &resource_data, texture.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateTexture2D(&texture_desc, &resource_data, texture.GetAddressOf()), "CreateTexture2D upload");
 
     // Create shader resource view from texture
 
@@ -476,13 +489,13 @@ static void gfx_d3d11_upload_texture(const uint8_t *rgba32_buf, int width, int h
     TextureData *texture_data = &d3d.textures[d3d.current_texture_ids[d3d.current_tile]];
     texture_data->width = width;
     texture_data->height = height;
-
+    
     if (texture_data->resource_view.Get() != nullptr) {
         // Free the previous texture in this slot
         texture_data->resource_view.Reset();
     }
 
-    ThrowIfFailed(d3d.device->CreateShaderResourceView(texture.Get(), &resource_view_desc, texture_data->resource_view.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateShaderResourceView(texture.Get(), &resource_view_desc, texture_data->resource_view.GetAddressOf()), "CreateShaderResourceView");
 }
 
 static void gfx_d3d11_set_sampler_parameters(int tile, bool linear_filter, uint32_t cms, uint32_t cmt) {
@@ -508,7 +521,7 @@ static void gfx_d3d11_set_sampler_parameters(int tile, bool linear_filter, uint3
     // state before setting the actual one.
     texture_data->sampler_state.Reset();
 
-    ThrowIfFailed(d3d.device->CreateSamplerState(&sampler_desc, texture_data->sampler_state.GetAddressOf()));
+    ThrowIfFailed(d3d.device->CreateSamplerState(&sampler_desc, texture_data->sampler_state.GetAddressOf()), "CreateSamplerState");
 }
 
 static void gfx_d3d11_set_depth_test(bool depth_test) {
@@ -524,9 +537,10 @@ static void gfx_d3d11_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_d3d11_set_viewport(int x, int y, int width, int height) {
+    auto bar_height = plugin_gfx_status_bar_height();
     D3D11_VIEWPORT viewport;
     viewport.TopLeftX = x;
-    viewport.TopLeftY = d3d.current_height - y - height + gStatusRect.bottom - gStatusRect.top;
+    viewport.TopLeftY = d3d.current_height - y - height - bar_height;
     viewport.Width = width;
     viewport.Height = height;
     viewport.MinDepth = 0.0f;
@@ -537,10 +551,11 @@ static void gfx_d3d11_set_viewport(int x, int y, int width, int height) {
 
 static void gfx_d3d11_set_scissor(int x, int y, int width, int height) {
     D3D11_RECT rect;
+    auto bar_height = plugin_gfx_status_bar_height();
     rect.left = x;
-    rect.top = d3d.current_height - y - height + gStatusRect.bottom - gStatusRect.top;
+    rect.top = d3d.current_height - y - height - bar_height;
     rect.right = x + width;
-    rect.bottom = d3d.current_height - y + gStatusRect.bottom - gStatusRect.top;
+    rect.bottom = d3d.current_height - y - bar_height;
 
     d3d.context->RSSetScissorRects(1, &rect);
 }
@@ -565,7 +580,7 @@ static void gfx_d3d11_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
         depth_stencil_desc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
         depth_stencil_desc.StencilEnable = false;
 
-        ThrowIfFailed(d3d.device->CreateDepthStencilState(&depth_stencil_desc, d3d.depth_stencil_state.GetAddressOf()));
+        ThrowIfFailed(d3d.device->CreateDepthStencilState(&depth_stencil_desc, d3d.depth_stencil_state.GetAddressOf()), "CreateDepthStencilState");
         d3d.context->OMSetDepthStencilState(d3d.depth_stencil_state.Get(), 0);
     }
 
@@ -588,7 +603,7 @@ static void gfx_d3d11_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
         rasterizer_desc.MultisampleEnable = false;
         rasterizer_desc.AntialiasedLineEnable = false;
 
-        ThrowIfFailed(d3d.device->CreateRasterizerState(&rasterizer_desc, d3d.rasterizer_state.GetAddressOf()));
+        ThrowIfFailed(d3d.device->CreateRasterizerState(&rasterizer_desc, d3d.rasterizer_state.GetAddressOf()), "CreateRasterizerState");
         d3d.context->RSSetState(d3d.rasterizer_state.Get());
     }
 
@@ -662,7 +677,7 @@ static void gfx_d3d11_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
 }
 
 static void gfx_d3d11_on_resize(void) {
-    create_render_target_views(true);
+    create_render_target_views();
 }
 
 static void gfx_d3d11_init(void) {
@@ -730,7 +745,9 @@ struct GfxRenderingAPI gfx_direct3d11_api = {
     gfx_d3d11_init,
     gfx_d3d11_deinit,
     gfx_d3d11_on_resize,
-    gfx_d3d11_start_frame
+    gfx_d3d11_start_frame,
+    []() { },
+    []() { },
 };
 
 #endif

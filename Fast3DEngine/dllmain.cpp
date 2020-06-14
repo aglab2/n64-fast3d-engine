@@ -1,9 +1,10 @@
 #include <Windows.h>
 
-#include "Gfx #1.3.h"
+#include "plugin.h"
 
 #include "../gfx_pc.h"
 #include "../gfx_direct3d11.h"
+#include "../gfx_dxgi.h"
 #include "../gfx_opengl.h"
 #include "dwnd.h"
 
@@ -14,9 +15,6 @@
 #include <mutex>
 #include <thread>
 #endif
-
-extern "C" GFX_INFO GfxInfo;
-GFX_INFO GfxInfo;
 
 class Operation
 {
@@ -30,7 +28,7 @@ class InitOperation : public Operation
 public:
     virtual bool execute() override
     {
-        gfx_init(&gfx_d3d11_dxgi_api, &gfx_direct3d11_api, "SM64");
+        gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", false /*fullscreen*/);
         // gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
         return true;
     }
@@ -51,10 +49,11 @@ class DlOperation : public Operation
 public:
     virtual bool execute() override
     {
-        auto dlistStart = *(uint32_t*)(GfxInfo.DMEM + 0xff0);
-        auto dlistSize = *(uint32_t*)(GfxInfo.DMEM + 0xff4);
+        auto& info = Plugin::info();
+        auto dlistStart = *(uint32_t*)(info.DMEM + 0xff0);
+        auto dlistSize = *(uint32_t*)(info.DMEM + 0xff4);
         gfx_start_frame();
-        gfx_run((Gfx*)&GfxInfo.RDRAM[dlistStart], dlistSize);
+        gfx_run(&info.RDRAM[dlistStart], dlistSize);
         gfx_end_frame();
         return true;
     }
@@ -196,7 +195,7 @@ EXPORT void CALL DrawScreen(void)
 EXPORT void CALL GetDllInfo(PLUGIN_INFO* PluginInfo)
 {
     PluginInfo->MemoryBswaped = true;
-    strcpy(PluginInfo->Name, "LINK's Renderer");
+    strcpy(PluginInfo->Name, Plugin::name());
     PluginInfo->NormalMemory = true;
     PluginInfo->Type = PLUGIN_TYPE_GFX;
     PluginInfo->Version = 0x0103;
@@ -219,7 +218,7 @@ EXPORT void CALL GetDllInfo(PLUGIN_INFO* PluginInfo)
 *******************************************************************/
 EXPORT BOOL CALL InitiateGFX(GFX_INFO Gfx_Info)
 {
-    GfxInfo = Gfx_Info;
+    Plugin::setInfo(Gfx_Info);
     return TRUE;
 }
 
