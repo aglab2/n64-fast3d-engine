@@ -5,6 +5,8 @@
 
 #ifdef __cplusplus
 
+#include "config.h"
+
 class Plugin
 {
 public:
@@ -13,8 +15,9 @@ public:
     static GFX_INFO& info()          { return me().sInfo(); }
     static HWND hWnd()               { return me().sHWnd(); }
     static int statusBarHeight()     { return me().sStatusBarHeight(); }
+    static const Config& config()    { return me().config_; }
 
-    static void resize(int w, int h) { return me().sResize(w, h); }
+    static void resize()             { return me().sResize(); }
 
 private:
     const char* sName();
@@ -23,7 +26,7 @@ private:
     HWND sHWnd();
     int sStatusBarHeight();
 
-    void sResize(int w, int h);
+    void sResize();
 
     static Plugin& me()
     {
@@ -33,6 +36,7 @@ private:
 
     GFX_INFO gfxInfo_;
     RECT statusRect_;
+    Config config_;
 };
 
 extern "C"
@@ -40,7 +44,6 @@ extern "C"
 #endif
 
 GFX_INFO* plugin_gfx_info();
-int plugin_gfx_status_bar_height();
 
 #ifdef __cplusplus
 }

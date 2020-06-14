@@ -26,8 +26,10 @@ int Plugin::sStatusBarHeight()
     return statusRect_.bottom - statusRect_.top - 1;
 }
 
-void Plugin::sResize(int width, int height)
+void Plugin::sResize()
 {
+    int width = config_.width();
+    int height = config_.height();
     RECT windowRect;
 
     GetClientRect(gfxInfo_.hWnd, &windowRect);
@@ -45,9 +47,4 @@ void Plugin::sResize(int width, int height)
 GFX_INFO* plugin_gfx_info()
 {
     return &Plugin::info();
-}
-
-int plugin_gfx_status_bar_height()
-{
-    return Plugin::statusBarHeight();
 }

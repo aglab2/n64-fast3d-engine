@@ -24,9 +24,6 @@
     <ClInclude Include="..\gfx_rendering_api.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\gfx_screen_config.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\gfx_window_manager_api.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -34,12 +31,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Gfx #1.3.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\gfx_opengl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="dwnd.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\gfx_direct3d_common.h">
@@ -57,18 +48,18 @@
     <ClInclude Include="plugin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="os.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\gfx_pc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="dwnd.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\gfx_opengl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\gfx_direct3d11.cpp">
@@ -84,6 +75,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="plugin.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="config.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="os.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

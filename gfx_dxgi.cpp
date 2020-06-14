@@ -39,6 +39,8 @@
 
 #include "Fast3DEngine/plugin.h"
 
+#include "Fast3DEngine/os.h"
+
 using namespace Microsoft::WRL; // For ComPtr
 
 static struct {
@@ -61,8 +63,8 @@ static struct {
     HANDLE waitable_object;
     uint64_t qpc_init, qpc_freq;
     uint64_t frame_timestamp; // in units of 1/FRAME_INTERVAL_US_DENOMINATOR microseconds
-    std::map<UINT, DXGI_FRAME_STATISTICS> frame_stats;
-    std::set<std::pair<UINT, UINT>> pending_frame_stats;
+    // std::map<UINT, DXGI_FRAME_STATISTICS> frame_stats;
+    // std::set<std::pair<UINT, UINT>> pending_frame_stats;
     bool dropped_frame;
     bool sync_interval_means_frames_to_wait;
     UINT length_in_vsync_frames;
@@ -203,8 +205,38 @@ static void gfx_dxgi_on_resize(void) {
     }
 }
 
+static void calculate_sync_interval() {
+    const POINT ptZero = { 0, 0 };
+    HMONITOR h_monitor = MonitorFromPoint(ptZero, MONITOR_DEFAULTTOPRIMARY);
+
+    MONITORINFOEX monitor_info;
+    monitor_info.cbSize = sizeof(MONITORINFOEX);
+    GetMonitorInfo(h_monitor, &monitor_info);
+
+    DEVMODE dev_mode;
+    dev_mode.dmSize = sizeof(DEVMODE);
+    dev_mode.dmDriverExtra = 0;
+    EnumDisplaySettings(monitor_info.szDevice, ENUM_CURRENT_SETTINGS, &dev_mode);
+
+    if (dev_mode.dmDisplayFrequency >= 29 && dev_mode.dmDisplayFrequency <= 31) {
+        dxgi.length_in_vsync_frames = 1;
+    }
+    else if (dev_mode.dmDisplayFrequency >= 59 && dev_mode.dmDisplayFrequency <= 61) {
+        dxgi.length_in_vsync_frames = 2;
+    }
+    else if (dev_mode.dmDisplayFrequency >= 89 && dev_mode.dmDisplayFrequency <= 91) {
+        dxgi.length_in_vsync_frames = 3;
+    }
+    else if (dev_mode.dmDisplayFrequency >= 119 && dev_mode.dmDisplayFrequency <= 121) {
+        dxgi.length_in_vsync_frames = 4;
+    }
+    else {
+        dxgi.length_in_vsync_frames = 0;
+    }
+}
+
 static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
-    Plugin::resize(DESIRED_SCREEN_WIDTH, DESIRED_SCREEN_HEIGHT);
+    Plugin::resize();
 
     LARGE_INTEGER qpc_init, qpc_freq;
     QueryPerformanceCounter(&qpc_init);
@@ -218,6 +250,12 @@ static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
     if (start_in_fullscreen) {
         toggle_borderless_window_full_screen(true, false);
     }
+
+    auto vsyncMode = Plugin::config().vsyncMode();
+    if (vsyncMode == VsyncMode::AUTOMATIC)
+        calculate_sync_interval();
+    else
+        dxgi.length_in_vsync_frames = (UINT) vsyncMode;
 }
 
 static void gfx_dxgi_deinit() {
@@ -368,12 +406,11 @@ static bool gfx_dxgi_start_frame(void) {
 }
 
 static void gfx_dxgi_swap_buffers_begin(void) {
-    //dxgi.length_in_vsync_frames = 1;
-    ThrowIfFailed(dxgi.swap_chain->Present(dxgi.length_in_vsync_frames, 0));
-    UINT this_present_id;
-    if (dxgi.swap_chain->GetLastPresentCount(&this_present_id) == S_OK) {
-        dxgi.pending_frame_stats.insert(std::make_pair(this_present_id, dxgi.length_in_vsync_frames));
-    }
+    ThrowIfFailed(dxgi.swap_chain->Present(dxgi.length_in_vsync_frames, 0), "Present");
+    //UINT this_present_id;
+    //if (dxgi.swap_chain->GetLastPresentCount(&this_present_id) == S_OK) {
+    //    dxgi.pending_frame_stats.insert(std::make_pair(this_present_id, dxgi.length_in_vsync_frames));
+    //}
     dxgi.dropped_frame = false;
 }
 
@@ -394,7 +431,7 @@ static void gfx_dxgi_swap_buffers_end(void) {
 
     QueryPerformanceCounter(&t2);
 
-    dxgi.sync_interval_means_frames_to_wait = dxgi.pending_frame_stats.rbegin()->first == stats.PresentCount;
+    // dxgi.sync_interval_means_frames_to_wait = dxgi.pending_frame_stats.rbegin()->first == stats.PresentCount;
 
     //printf("done %llu gpu:%d wait:%d freed:%llu frame:%u %u monitor:%u t:%llu\n", (unsigned long long)(t0.QuadPart - dxgi.qpc_init), (int)(t1.QuadPart - t0.QuadPart), (int)(t2.QuadPart - t0.QuadPart), (unsigned long long)(t2.QuadPart - dxgi.qpc_init), dxgi.pending_frame_stats.rbegin()->first, stats.PresentCount, stats.SyncRefreshCount, (unsigned long long)(stats.SyncQPCTime.QuadPart - dxgi.qpc_init));
 }
@@ -459,7 +496,6 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
         ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&device1)), "QueryInterface");
         ThrowIfFailed(device1->SetMaximumFrameLatency(1), "SetMaximumFrameLatency");
     }
-
 
     ThrowIfFailed(dxgi.swap_chain->GetDesc1(&swap_chain_desc), "GetDesc1 swap_chain");
     dxgi.current_width = swap_chain_desc.Width;

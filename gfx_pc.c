@@ -463,48 +463,6 @@ static void import_texture_i4(int tile) {
     uint8_t rgba32_buf[32768];
 
     for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes * 2; i++) {
-        uint8_t byte = rdp.loaded_texture[tile].addr[i / 2];
-        uint8_t part = (byte >> (4 - (i % 2) * 4)) & 0xf;
-        uint8_t intensity = part;
-        uint8_t r = intensity;
-        uint8_t g = intensity;
-        uint8_t b = intensity;
-        rgba32_buf[4*i + 0] = SCALE_4_8(r);
-        rgba32_buf[4*i + 1] = SCALE_4_8(g);
-        rgba32_buf[4*i + 2] = SCALE_4_8(b);
-        rgba32_buf[4*i + 3] = 255;
-    }
-
-    uint32_t width = rdp.texture_tile.line_size_bytes * 2;
-    uint32_t height = rdp.loaded_texture[tile].size_bytes / rdp.texture_tile.line_size_bytes;
-
-    gfx_rapi->upload_texture(rgba32_buf, width, height);
-}
-
-static void import_texture_i8(int tile) {
-    uint8_t rgba32_buf[16384];
-
-    for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes; i++) {
-        uint8_t intensity = rdp.loaded_texture[tile].addr[i];
-        uint8_t r = intensity;
-        uint8_t g = intensity;
-        uint8_t b = intensity;
-        rgba32_buf[4*i + 0] = r;
-        rgba32_buf[4*i + 1] = g;
-        rgba32_buf[4*i + 2] = b;
-        rgba32_buf[4*i + 3] = 255;
-    }
-
-    uint32_t width = rdp.texture_tile.line_size_bytes;
-    uint32_t height = rdp.loaded_texture[tile].size_bytes / rdp.texture_tile.line_size_bytes;
-
-    gfx_rapi->upload_texture(rgba32_buf, width, height);
-}
-
-static void import_texture_i4(int tile) {
-    uint8_t rgba32_buf[32768];
-
-    for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes * 2; i++) {
         uint8_t byte = rdp.loaded_texture[tile].addr[idx_byteswap(i / 2)];
         uint8_t part = (byte >> (4 - (i % 2) * 4)) & 0xf;
         uint8_t intensity = part;
@@ -524,6 +482,9 @@ static void import_texture_i4(int tile) {
 }
 
 static void import_texture_i8(int tile) {
+    if (tile != 0 && tile != 1)
+        tile = 0;
+
     uint8_t rgba32_buf[16384];
 
     for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes; i++) {
@@ -637,14 +598,6 @@ static void import_texture(int tile) {
         } else {
             abort();
         }
-    } else if (fmt == G_IM_FMT_I) {
-        if (siz == G_IM_SIZ_4b) {
-            import_texture_i4(tile);
-        } else if (siz == G_IM_SIZ_8b) {
-            import_texture_i8(tile);
-        } else {
-            abort();
-        }
     }
     else if (fmt == G_IM_FMT_I) {
         if (siz == G_IM_SIZ_4b) {
@@ -740,9 +693,9 @@ static void gfx_sp_matrix(uint8_t parameters, const int32_t *addr) {
 
 static void gfx_sp_pop_matrix(uint32_t count) {
     while (count--) {
-        if (rsp.modelview_matrix_stack_size > 0) {
+        if (rsp.modelview_matrix_stack_size > 1) {
             --rsp.modelview_matrix_stack_size;
-            if (rsp.modelview_matrix_stack_size > 0) {
+            if (rsp.modelview_matrix_stack_size > 1) {
                 gfx_matrix_mul(rsp.MP_matrix, rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1], rsp.P_matrix);
             }
         }
@@ -988,8 +941,8 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx) {
     }
     
     bool use_texture = used_textures[0] || used_textures[1];
-    uint32_t tex_width = (rdp.texture_tile.lrs - rdp.texture_tile.uls + 4) / 4;
-    uint32_t tex_height = (rdp.texture_tile.lrt - rdp.texture_tile.ult + 4) / 4;
+    uint32_t tex_width = (rdp.texture_tile.lrs + 4) / 4;
+    uint32_t tex_height = (rdp.texture_tile.lrt + 4) / 4;
     
     bool z_is_from_0_to_1 = gfx_rapi->z_is_from_0_to_1();
     
@@ -1284,8 +1237,10 @@ static void gfx_dp_load_block(uint8_t tile, uint32_t uls, uint32_t ult, uint32_t
             break;
     }
     uint32_t size_bytes = (lrs + 1) << word_size_shift;
+    if (size_bytes > 4096)
+        size_bytes = 4096;
+
     rdp.loaded_texture[rdp.texture_to_load.tile_number].size_bytes = size_bytes;
-    assert(size_bytes <= 4096 && "bug: too big texture");
     rdp.loaded_texture[rdp.texture_to_load.tile_number].addr = rdp.texture_to_load.addr;
     
     rdp.textures_changed[rdp.texture_to_load.tile_number] = true;
@@ -1325,7 +1280,6 @@ static void gfx_dp_load_tile(uint8_t tile, uint32_t uls, uint32_t ult, uint32_t 
 
     rdp.textures_changed[rdp.texture_to_load.tile_number] = true;
 }
-
 
 static uint8_t color_comb_component(uint32_t v) {
     switch (v) {
@@ -1820,7 +1774,9 @@ struct GfxRenderingAPI *gfx_get_current_rendering_api(void) {
 }
 
 void gfx_start_frame(void) {
-    gfx_wapi->handle_events();
+    for (int i = 0; i < 16; i++)
+        gSegments[i] = 0;
+
     gfx_wapi->get_dimensions(&gfx_current_dimensions.width, &gfx_current_dimensions.height);
     if (gfx_current_dimensions.height == 0) {
         // Avoid division by zero

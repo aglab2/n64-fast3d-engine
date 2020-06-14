@@ -240,8 +240,8 @@ static void gfx_d3d11_init(void) {
 
     // Sample description to be used in back buffer and depth buffer
 
-    d3d.sample_description.Count = SAMPLING_COUNT;
-    d3d.sample_description.Quality = SAMPLING_QUALITY;
+    d3d.sample_description.Count   = Plugin::config().sampleCount();
+    d3d.sample_description.Quality = Plugin::config().sampleQuality();
 
     // Create the swap chain
     d3d.swap_chain = gfx_dxgi_create_swap_chain(d3d.device.Get());
@@ -537,7 +537,7 @@ static void gfx_d3d11_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_d3d11_set_viewport(int x, int y, int width, int height) {
-    auto bar_height = plugin_gfx_status_bar_height();
+    auto bar_height = Plugin::statusBarHeight();
     D3D11_VIEWPORT viewport;
     viewport.TopLeftX = x;
     viewport.TopLeftY = d3d.current_height - y - height - bar_height;
@@ -551,7 +551,7 @@ static void gfx_d3d11_set_viewport(int x, int y, int width, int height) {
 
 static void gfx_d3d11_set_scissor(int x, int y, int width, int height) {
     D3D11_RECT rect;
-    auto bar_height = plugin_gfx_status_bar_height();
+    auto bar_height = Plugin::statusBarHeight();
     rect.left = x;
     rect.top = d3d.current_height - y - height - bar_height;
     rect.right = x + width;
