@@ -25,6 +25,9 @@ void gfx_start_frame(void);
 void gfx_run(void* commands, int size);
 void gfx_end_frame(void);
 
+struct GfxRenderingAPI* gfx_get_current_rendering_api(void);
+struct GfxWindowManagerAPI* gfx_get_current_window_manager_api(void);
+
 #ifdef __cplusplus
 }
 #endif

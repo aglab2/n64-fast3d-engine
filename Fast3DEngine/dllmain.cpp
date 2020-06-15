@@ -18,15 +18,17 @@
 
 class Operation
 {
+#ifdef RSPTHREAD
 public:
     virtual ~Operation() = default;
     virtual bool execute() = 0;
+#endif
 };
 
 class InitOperation : public Operation
 {
 public:
-    virtual bool execute() override
+    bool execute()
     {
         gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", false /*fullscreen*/);
         // gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
@@ -37,7 +39,7 @@ public:
 class DeinitOperation : public Operation
 {
 public:
-    virtual bool execute() override
+    bool execute()
     {
         gfx_deinit();
         return false;
@@ -47,7 +49,7 @@ public:
 class DlOperation : public Operation
 {
 public:
-    virtual bool execute() override
+    bool execute()
     {
         auto& info = Plugin::info();
         auto dlistStart = *(uint32_t*)(info.DMEM + 0xff0);
@@ -119,8 +121,11 @@ EXPORT void CALL CaptureScreen(char* Directory)
   input:    none
   output:   none
 *******************************************************************/
+static bool gFullscreen = false;
 EXPORT void CALL ChangeWindow(void)
 {
+    gFullscreen = !gFullscreen;
+    gfx_get_current_window_manager_api()->set_fullscreen(gFullscreen);
 }
 
 /******************************************************************

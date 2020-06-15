@@ -1773,6 +1773,10 @@ struct GfxRenderingAPI *gfx_get_current_rendering_api(void) {
     return gfx_rapi;
 }
 
+struct GfxWindowManagerAPI* gfx_get_current_window_manager_api(void) {
+    return gfx_wapi;
+}
+
 void gfx_start_frame(void) {
     for (int i = 0; i < 16; i++)
         gSegments[i] = 0;
