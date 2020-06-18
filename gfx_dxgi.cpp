@@ -105,7 +105,7 @@ static void run_as_dpi_aware(Fun f) {
 
     DPI_AWARENESS_CONTEXT (WINAPI *SetThreadDpiAwarenessContext)(DPI_AWARENESS_CONTEXT dpiContext);
     *(FARPROC *)&SetThreadDpiAwarenessContext = GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetThreadDpiAwarenessContext");
-    DPI_AWARENESS_CONTEXT old_awareness_context;
+    DPI_AWARENESS_CONTEXT old_awareness_context = {};
     if (SetThreadDpiAwarenessContext != nullptr) {
         old_awareness_context = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     } else {
@@ -482,9 +482,9 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
         // When setting size for the buffers, the values that DXGI puts into the desc (that can later be retrieved by GetDesc1)
         // have been divided by the current scaling factor. By making this call dpi aware, no division will be performed.
         // The same goes for IDXGISwapChain::ResizeBuffers(), however that function is currently only called from the message handler.
-        ThrowIfFailed(dxgi.factory->CreateSwapChainForHwnd(device, dxgi.h_wnd, &swap_chain_desc, nullptr, nullptr, &dxgi.swap_chain));
+        ThrowIfFailed(dxgi.factory->CreateSwapChainForHwnd(device, dxgi.h_wnd, &swap_chain_desc, nullptr, nullptr, &dxgi.swap_chain), "CreateSwapChainForHwnd");
     });
-    ThrowIfFailed(dxgi.factory->MakeWindowAssociation(dxgi.h_wnd, DXGI_MWA_NO_ALT_ENTER));
+    ThrowIfFailed(dxgi.factory->MakeWindowAssociation(dxgi.h_wnd, DXGI_MWA_NO_ALT_ENTER), "MakeWindowAssociation");
 
     ComPtr<IDXGISwapChain2> swap_chain2;
     if (dxgi.swap_chain->QueryInterface(__uuidof(IDXGISwapChain2), &swap_chain2) == S_OK) {
