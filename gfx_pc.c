@@ -702,8 +702,8 @@ static void gfx_sp_pop_matrix(uint32_t count) {
     }
 }
 
-static float gfx_adjust_x_for_aspect_ratio(float x) {
-    return x * (4.0f / 3.0f) / ((float)gfx_current_dimensions.width / (float)gfx_current_dimensions.height);
+static float gfx_adjust_for_aspect_ratio(float x) {
+    return x * gfx_current_dimensions.fixup_factor;
 }
 
 static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *vertices) {
@@ -717,7 +717,7 @@ static void gfx_sp_vertex(size_t n_vertices, size_t dest_index, const Vtx *verti
         float z = v->x * rsp.MP_matrix[0][2] + v->y * rsp.MP_matrix[1][2] + v->z * rsp.MP_matrix[2][2] + rsp.MP_matrix[3][2];
         float w = v->x * rsp.MP_matrix[0][3] + v->y * rsp.MP_matrix[1][3] + v->z * rsp.MP_matrix[2][3] + rsp.MP_matrix[3][3];
         
-        x = gfx_adjust_x_for_aspect_ratio(x);
+        x = gfx_adjust_for_aspect_ratio(x);
         
         short U = v->s * rsp.texture_scaling_factor.s >> 16;
         short V = v->t * rsp.texture_scaling_factor.t >> 16;
@@ -864,7 +864,7 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx) {
         rendering_state.depth_mask = z_upd;
     }
     
-    bool zmode_decal = (rdp.other_mode_l & ZMODE_DEC) == ZMODE_DEC;
+    bool zmode_decal = ((rdp.other_mode_l & ZMODE_DEC) == ZMODE_DEC) || ((rdp.other_mode_l & ZMODE_INTER) == ZMODE_INTER);
     if (zmode_decal != rendering_state.decal_mode) {
         gfx_flush();
         gfx_rapi->set_zmode_decal(zmode_decal);
@@ -1120,7 +1120,7 @@ static void gfx_sp_moveword(uint8_t index, uint16_t offset, uint32_t data) {
             break;
         case G_MW_FOG:
             rsp.fog_mul = (int16_t)(data >> 16);
-            rsp.fog_offset = (int16_t)data;
+            rsp.fog_offset = (int16_t)data - config_nerf_fog_factor();
             break;
         case G_MW_SEGMENT:
             gSegments[offset >> 2] = data;
@@ -1365,8 +1365,8 @@ static void gfx_draw_rectangle(int32_t ulx, int32_t uly, int32_t lrx, int32_t lr
     lrxf = lrxf / (4.0f * HALF_SCREEN_WIDTH) - 1.0f;
     lryf = -(lryf / (4.0f * HALF_SCREEN_HEIGHT)) + 1.0f;
     
-    ulxf = gfx_adjust_x_for_aspect_ratio(ulxf);
-    lrxf = gfx_adjust_x_for_aspect_ratio(lrxf);
+    ulxf = gfx_adjust_for_aspect_ratio(ulxf);
+    lrxf = gfx_adjust_for_aspect_ratio(lrxf);
     
     struct LoadedVertex* ul = &rsp.loaded_vertices[MAX_VERTICES + 0];
     struct LoadedVertex* ll = &rsp.loaded_vertices[MAX_VERTICES + 1];
@@ -1786,7 +1786,7 @@ void gfx_start_frame(void) {
         // Avoid division by zero
         gfx_current_dimensions.height = 1;
     }
-    gfx_current_dimensions.aspect_ratio = (float)gfx_current_dimensions.width / (float)gfx_current_dimensions.height;
+    gfx_current_dimensions.fixup_factor = (4.0f / 3.0f) / ((float)gfx_current_dimensions.width / (float)gfx_current_dimensions.height);
 }
 
 void gfx_run(Gfx *commands, int dlistSize) {

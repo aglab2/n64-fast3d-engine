@@ -52,6 +52,16 @@ try
 
     sampleQuality_ = config["sampleQuality"].as<int>();
     reducedLatency_ = config["reducedLatency"].as<std::string>() == "allow" ? true : false;
+    try
+    {
+        nerfFogFactor_ = config["nerfFog"].as<float>();
+    }
+    catch(...) { }    
+    try
+    {
+        shadowBias_ = config["shadowBias"].as<float>();
+    }
+    catch (...) {}
     return true;
 }
 catch (...)
@@ -71,6 +81,8 @@ try
     config["sample"] = sampleCount_;
     config["sampleQuality"] = sampleQuality_;
     config["reducedLatency"] = reducedLatency_ ? "allow" : "disallow";
+    config["nerfFog"] = nerfFogFactor_;
+    config["shadowBias"] = shadowBias_;
 
     std::ofstream fout(p);
     fout << config;

@@ -25,6 +25,8 @@ public:
     int sampleCount()     const { return sampleCount_; }
     int sampleQuality()   const { return sampleQuality_; }
     int reducedLatency()  const { return reducedLatency_; }
+    float nerfFogFactor() const { return nerfFogFactor_; }
+    float shadowBias()    const { return shadowBias_; }
 
 private:
     int width_ = 640;
@@ -33,6 +35,8 @@ private:
     int sampleQuality_ = 0;
     bool reducedLatency_ = true;
     VsyncMode vsyncMode_ = VsyncMode::DISABLED;
+    float nerfFogFactor_ = 0;
+    float shadowBias_ = 2.f;
 
     static VsyncMode toVsyncMode(const std::string&);
 

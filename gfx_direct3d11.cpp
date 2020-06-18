@@ -456,8 +456,8 @@ static void gfx_d3d11_upload_texture(const uint8_t *rgba32_buf, int width, int h
     D3D11_TEXTURE2D_DESC texture_desc;
     ZeroMemory(&texture_desc, sizeof(D3D11_TEXTURE2D_DESC));
 
-    texture_desc.Width = width;
-    texture_desc.Height = height;
+    texture_desc.Width = width ? width : 1;
+    texture_desc.Height = height ? height : 1;
     texture_desc.Usage = D3D11_USAGE_IMMUTABLE;
     texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
     texture_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -596,7 +596,7 @@ static void gfx_d3d11_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t
         rasterizer_desc.CullMode = D3D11_CULL_NONE;
         rasterizer_desc.FrontCounterClockwise = true;
         rasterizer_desc.DepthBias = 0;
-        rasterizer_desc.SlopeScaledDepthBias = d3d.zmode_decal ? -2.0f : 0.0f;
+        rasterizer_desc.SlopeScaledDepthBias = d3d.zmode_decal ? -Plugin::config().shadowBias() : 0.0f;
         rasterizer_desc.DepthBiasClamp = 0.0f;
         rasterizer_desc.DepthClipEnable = true;
         rasterizer_desc.ScissorEnable = true;

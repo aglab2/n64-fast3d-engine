@@ -2,7 +2,7 @@
 
 const char* Plugin::sName()
 {
-    return "LINK's Fast3DEngine";
+    return "LINK's Fast3DEngine v0.1";
 }
 
 void Plugin::sSetInfo(GFX_INFO i)
@@ -47,4 +47,9 @@ void Plugin::sResize()
 GFX_INFO* plugin_gfx_info()
 {
     return &Plugin::info();
+}
+
+float config_nerf_fog_factor()
+{
+    return Plugin::config().nerfFogFactor();
 }
