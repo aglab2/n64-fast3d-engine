@@ -16,11 +16,12 @@
 #include "gfx_rendering_api.h"
 #include "gfx_screen_config.h"
 
-#include "Fast3DEngine/plugin.h"
-
 #include <windows.h>
 
 #include "Fast3DEngine/Gfx #1.3.h"
+#include "Fast3DEngine/plugin.h"
+
+#include "xxh3.h"
 
 static uint32_t gSegments[16];
 
@@ -69,7 +70,7 @@ struct TextureHashmapNode {
     const uint8_t *texture_addr;
     uint8_t fmt, siz;
 
-    uint32_t hash;
+    uint64_t hash;
     
     uint32_t texture_id;
     uint8_t cms, cmt;
@@ -287,7 +288,7 @@ static void gfx_texture_cache_drop()
     memset(&gfx_texture_cache, 0, sizeof(gfx_texture_cache));
 }
 
-static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, uint32_t hash, const uint8_t *orig_addr, uint32_t fmt, uint32_t siz) {
+static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, uint64_t hash, const uint8_t *orig_addr, uint32_t fmt, uint32_t siz) {
     struct TextureHashmapNode **node = &gfx_texture_cache.hashmap[hash & 0x3ff];
     while (*node != NULL && *node - gfx_texture_cache.pool < gfx_texture_cache.pool_pos) {
         if ((*node)->hash == hash && (*node)->fmt == fmt && (*node)->siz == siz) {
@@ -528,24 +529,11 @@ static void import_texture_ci8(int tile) {
     gfx_rapi->upload_texture(rgba32_buf, width, height);
 }
 
-#define FNV_PRIME_32 16777619
-#define FNV_OFFSET_32 2166136261U
-static uint32_t FNV32(const char* data, size_t size)
-{
-    uint32_t hash = FNV_OFFSET_32, i;
-    for (i = 0; i < size; i++)
-    {
-        hash = hash ^ (data[i]);
-        hash = hash * FNV_PRIME_32;
-    }
-    return hash;
-}
-
 static void import_texture(int tile) {
     uint8_t fmt = rdp.texture_tile.fmt;
     uint8_t siz = rdp.texture_tile.siz;
     
-    uint32_t hash = FNV32(rdp.loaded_texture[tile].addr, rdp.loaded_texture[tile].size_bytes);
+    uint64_t hash = XXH3_64bits(rdp.loaded_texture[tile].addr, rdp.loaded_texture[tile].size_bytes, 0);
     if (gfx_texture_cache_lookup(tile, &rendering_state.textures[tile], hash, rdp.loaded_texture[tile].addr, fmt, siz)) {
         return;
     }

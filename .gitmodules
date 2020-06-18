@@ -1,3 +1,6 @@
-[submodule ".\\yaml-cpp\\yaml-cpp"]
-	path = .\\yaml-cpp\\yaml-cpp
+[submodule "yaml-cpp"]
+	path = yaml-cpp/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "xxHash"]
+	path = xxHash
+	url = https://github.com/Cyan4973/xxHash.git
