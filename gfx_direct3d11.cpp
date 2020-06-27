@@ -305,7 +305,6 @@ static void gfx_d3d11_deinit(void) {
     d3d.textures.clear();
     for (int i = 0; i < 64; i++)
         d3d.shader_program_pool[i] = {};
-
     d3d = {};
 }
 

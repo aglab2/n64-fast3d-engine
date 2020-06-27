@@ -45,6 +45,7 @@ extern "C"
 
 GFX_INFO* plugin_gfx_info();
 float config_nerf_fog_factor();
+bool config_deinit_allowed();
 
 #ifdef __cplusplus
 }

@@ -18,6 +18,7 @@ Config::Config()
         std::filesystem::create_directory(configDir);
 
     auto configFile = configDir / "f3d.yaml";
+    configPath_ = configFile.string();
     //if (std::filesystem::exists(configFile))
         read(configFile.u8string());
     //else
@@ -56,10 +57,15 @@ try
     {
         nerfFogFactor_ = config["nerfFog"].as<float>();
     }
-    catch(...) { }    
+    catch(...) { }
     try
     {
         shadowBias_ = config["shadowBias"].as<float>();
+    }
+    catch (...) {}
+    try
+    {
+        deinitAllowed_ = config["deinitAllowed"].as<bool>();
     }
     catch (...) {}
     return true;
@@ -83,6 +89,7 @@ try
     config["reducedLatency"] = reducedLatency_ ? "allow" : "disallow";
     config["nerfFog"] = nerfFogFactor_;
     config["shadowBias"] = shadowBias_;
+    config["deinitAllowed"] = deinitAllowed_;
 
     std::ofstream fout(p);
     fout << config;

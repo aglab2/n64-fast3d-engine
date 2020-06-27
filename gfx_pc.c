@@ -21,6 +21,7 @@
 #include "Fast3DEngine/Gfx #1.3.h"
 #include "Fast3DEngine/plugin.h"
 
+#include "Fast3DEngine/plugin.h"
 #include "xxh3.h"
 
 static uint32_t gSegments[16];
@@ -532,8 +533,19 @@ static void import_texture_ci8(int tile) {
 static void import_texture(int tile) {
     uint8_t fmt = rdp.texture_tile.fmt;
     uint8_t siz = rdp.texture_tile.siz;
+
+    uint64_t hash;
+    {
+        XXH3_state_t state;
+        XXH3_64bits_reset(&state);
+        XXH3_64bits_update(&state, rdp.loaded_texture[tile].addr, rdp.loaded_texture[tile].size_bytes);
+        if (fmt == G_IM_FMT_CI)
+        {
+            XXH3_64bits_update(&state, rdp.palette, 32);
+        }
+        hash = XXH3_64bits_digest(&state);
+    }
     
-    uint64_t hash = XXH3_64bits(rdp.loaded_texture[tile].addr, rdp.loaded_texture[tile].size_bytes, 0);
     if (gfx_texture_cache_lookup(tile, &rendering_state.textures[tile], hash, rdp.loaded_texture[tile].addr, fmt, siz)) {
         return;
     }
@@ -1716,24 +1728,47 @@ void gfx_get_dimensions(uint32_t *width, uint32_t *height) {
     gfx_wapi->get_dimensions(width, height);
 }
 
+#define DEINIT_DISALLOWED
+
 void gfx_init(struct GfxWindowManagerAPI *wapi, struct GfxRenderingAPI *rapi, const char *game_name, bool start_in_fullscreen) {
     gfx_wapi = wapi;
     gfx_rapi = rapi;
-    gfx_wapi->init(game_name, start_in_fullscreen);
-    gfx_rapi->init();
+
+    bool mustInit = false;
+
+    bool deinitAllowed = config_deinit_allowed();
+    if (!deinitAllowed)
+    {
+        static bool inited = false;
+        if (!inited)
+        {
+            mustInit = true;
+            inited = true;
+        }
+    }
+
+    if (mustInit)
+    {
+        gfx_wapi->init(game_name, start_in_fullscreen);
+        gfx_rapi->init();
+    }
 }
 
-void gfx_deinit()
+void gfx_deinit(bool force)
 {
-    gfx_texture_cache_drop();
-    gfx_color_combiner_cache_drop();
-    memset(&rdp, 0, sizeof(rdp));
-    memset(&rsp, 0, sizeof(rsp));
-    memset(&rendering_state, 0, sizeof(rendering_state));
-    gfx_rapi->deinit();
-    gfx_wapi->deinit();
-    gfx_rapi = NULL;
-    gfx_wapi = NULL;
+    if (force || config_deinit_allowed())
+    {
+        gfx_texture_cache_drop();
+        gfx_color_combiner_cache_drop();
+        memset(&rdp, 0, sizeof(rdp));
+        memset(&rsp, 0, sizeof(rsp));
+        memset(&rendering_state, 0, sizeof(rendering_state));
+
+        gfx_rapi->deinit();
+        gfx_wapi->deinit();
+        gfx_rapi = NULL;
+        gfx_wapi = NULL;
+    }
 }
 
 struct GfxRenderingAPI *gfx_get_current_rendering_api(void) {

@@ -140,6 +140,8 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
     // sync interval of latency extra. On Win 10 however (maybe Win 8 too), due to
     // "fullscreen optimizations" the latency is eliminated.
 
+    static LONG windowedStyle;
+
     if (enable == dxgi.is_full_screen) {
         return;
     }
@@ -148,7 +150,7 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
         RECT r = dxgi.last_window_rect;
 
         // Set in window mode with the last saved position and size
-        SetWindowLongPtr(dxgi.h_wnd, GWL_STYLE, WS_VISIBLE | WS_OVERLAPPEDWINDOW);
+        SetWindowLongPtr(dxgi.h_wnd, GWL_STYLE, windowedStyle);
 
         if (dxgi.last_maximized_state) {
             SetWindowPos(dxgi.h_wnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
@@ -157,8 +159,6 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
             SetWindowPos(dxgi.h_wnd, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
             ShowWindow(dxgi.h_wnd, SW_RESTORE);
         }
-
-        ShowCursor(TRUE);
 
         dxgi.is_full_screen = false;
     } else {
@@ -181,10 +181,10 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
         RECT r = monitor_info.rcMonitor;
 
         // Set borderless full screen to that monitor
+        windowedStyle = GetWindowLongPtr(dxgi.h_wnd, GWL_STYLE);
+
         SetWindowLongPtr(dxgi.h_wnd, GWL_STYLE, WS_VISIBLE | WS_POPUP);
         SetWindowPos(dxgi.h_wnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
-
-        ShowCursor(FALSE);
 
         dxgi.is_full_screen = true;
     }
@@ -259,6 +259,8 @@ static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
 }
 
 static void gfx_dxgi_deinit() {
+    dxgi.swap_chain.Reset();
+    dxgi.factory.Reset();
     dxgi = {};
 }
 

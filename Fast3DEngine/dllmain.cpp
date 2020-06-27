@@ -8,6 +8,8 @@
 #include "../gfx_opengl.h"
 #include "dwnd.h"
 
+#include <shellapi.h>
+
 // #define RSPTHREAD
 
 #ifdef RSPTHREAD
@@ -41,7 +43,7 @@ class DeinitOperation : public Operation
 public:
     bool execute()
     {
-        gfx_deinit();
+        gfx_deinit(false /*force*/);
         return false;
     }
 };
@@ -97,7 +99,9 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     case DLL_PROCESS_ATTACH:
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
+        break;
     case DLL_PROCESS_DETACH:
+        gfx_deinit(true /*force*/);
         break;
     }
     return TRUE;
@@ -161,7 +165,7 @@ EXPORT void CALL DllAbout(HWND hParent)
 *******************************************************************/
 EXPORT void CALL DllConfig(HWND hParent)
 {
-
+    ShellExecute(NULL, NULL, Plugin::config().configPath().c_str(), NULL, NULL, SW_SHOWNORMAL);
 }
 
 /******************************************************************

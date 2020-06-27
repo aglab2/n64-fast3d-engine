@@ -27,6 +27,9 @@ public:
     int reducedLatency()  const { return reducedLatency_; }
     float nerfFogFactor() const { return nerfFogFactor_; }
     float shadowBias()    const { return shadowBias_; }
+    bool deinitAllowed()  const { return deinitAllowed_; }
+
+    const std::string& configPath() const { return configPath_; }
 
 private:
     int width_ = 640;
@@ -37,6 +40,8 @@ private:
     VsyncMode vsyncMode_ = VsyncMode::DISABLED;
     float nerfFogFactor_ = 0;
     float shadowBias_ = 2.f;
+    bool deinitAllowed_ = false;
+    std::string configPath_;
 
     static VsyncMode toVsyncMode(const std::string&);
 
