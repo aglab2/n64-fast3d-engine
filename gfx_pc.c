@@ -1746,6 +1746,10 @@ void gfx_init(struct GfxWindowManagerAPI *wapi, struct GfxRenderingAPI *rapi, co
             inited = true;
         }
     }
+    else
+    {
+        mustInit = true;
+    }
 
     if (mustInit)
     {
@@ -1758,6 +1762,9 @@ void gfx_deinit(bool force)
 {
     if (force || config_deinit_allowed())
     {
+        if (gfx_rapi == NULL || gfx_wapi == NULL)
+            return;
+
         gfx_texture_cache_drop();
         gfx_color_combiner_cache_drop();
         memset(&rdp, 0, sizeof(rdp));

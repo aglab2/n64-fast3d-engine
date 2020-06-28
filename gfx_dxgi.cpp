@@ -260,7 +260,6 @@ static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
 
 static void gfx_dxgi_deinit() {
     dxgi.swap_chain.Reset();
-    dxgi.factory.Reset();
     dxgi = {};
 }
 
@@ -487,6 +486,7 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
         ThrowIfFailed(dxgi.factory->CreateSwapChainForHwnd(device, dxgi.h_wnd, &swap_chain_desc, nullptr, nullptr, &dxgi.swap_chain), "CreateSwapChainForHwnd");
     });
     ThrowIfFailed(dxgi.factory->MakeWindowAssociation(dxgi.h_wnd, DXGI_MWA_NO_ALT_ENTER), "MakeWindowAssociation");
+    dxgi.factory.Reset();
 
     ComPtr<IDXGISwapChain2> swap_chain2;
     if (dxgi.swap_chain->QueryInterface(__uuidof(IDXGISwapChain2), &swap_chain2) == S_OK) {
