@@ -227,7 +227,7 @@ static void gfx_generate_cc(struct ColorCombiner *comb, uint32_t cc_id) {
                 case CC_PRIM:
                 case CC_SHADE:
                 case CC_ENV:
-                case CC_LOD:
+                case CC_1:
                     if (input_number[c[i][j]] == 0) {
                         shader_input_mapping[i][next_input_number - 1] = c[i][j];
                         input_number[c[i][j]] = next_input_number++;
@@ -968,15 +968,10 @@ static void gfx_sp_tri1(uint8_t vtx1_idx, uint8_t vtx2_idx, uint8_t vtx3_idx) {
                     case CC_ENV:
                         color = &rdp.env_color;
                         break;
-                    case CC_LOD:
-                    {
-                        float distance_frac = (v1->w - 3000.0f) / 3000.0f;
-                        if (distance_frac < 0.0f) distance_frac = 0.0f;
-                        if (distance_frac > 1.0f) distance_frac = 1.0f;
-                        tmp.r = tmp.g = tmp.b = tmp.a = distance_frac * 255.0f;
+                    case CC_1:
+                        memset(&tmp, 255, sizeof(tmp));
                         color = &tmp;
                         break;
-                    }
                     default:
                         memset(&tmp, 0, sizeof(tmp));
                         color = &tmp;
@@ -1099,12 +1094,41 @@ static void gfx_sp_moveword(uint8_t index, uint16_t offset, uint32_t data) {
             break;
         case G_MW_FOG:
             rsp.fog_mul = (int16_t)(data >> 16);
-            rsp.fog_offset = (int16_t)data - config_nerf_fog_factor();
+            rsp.fog_offset = (int16_t)data - Plugin::config().nerfFogFactor();
             break;
         case G_MW_SEGMENT:
             gSegments[offset >> 2] = data;
             break;
     }
+}
+
+
+static uint8_t color_comb_component(uint32_t v) {
+    switch (v) {
+    case G_CCMUX_TEXEL0:
+        return CC_TEXEL0;
+    case G_CCMUX_TEXEL1:
+        return CC_TEXEL1;
+    case G_CCMUX_PRIMITIVE:
+        return CC_PRIM;
+    case G_CCMUX_SHADE:
+        return CC_SHADE;
+    case G_CCMUX_ENVIRONMENT:
+        return CC_ENV;
+    case G_CCMUX_TEXEL0_ALPHA:
+        return CC_TEXEL0A;
+    case G_CCMUX_1:
+        return CC_1;
+    default:
+        return CC_0;
+    }
+}
+
+static inline uint32_t color_comb(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    return color_comb_component(a) |
+          (color_comb_component(b) << 3) |
+          (color_comb_component(c) << 6) |
+          (color_comb_component(d) << 9);
 }
 
 static void gfx_dp_set_combine_mode(uint32_t rgb, uint32_t alpha);
@@ -1132,7 +1156,7 @@ static void gfx_dp_set_scissor(uint32_t mode, uint32_t ulx, uint32_t uly, uint32
 }
 
 static void gfx_dp_set_texture_image(uint32_t format, uint32_t size, uint32_t width, const void* addr) {
-    rdp.texture_to_load.addr = addr;
+    rdp.texture_to_load.addr = (const uint8_t*) addr;
     rdp.texture_to_load.siz = size;
 }
 
@@ -1258,34 +1282,6 @@ static void gfx_dp_load_tile(uint8_t tile, uint32_t uls, uint32_t ult, uint32_t 
     rdp.texture_tile.lrt = lrt;
 
     rdp.textures_changed[rdp.texture_to_load.tile_number] = true;
-}
-
-static uint8_t color_comb_component(uint32_t v) {
-    switch (v) {
-        case G_CCMUX_TEXEL0:
-            return CC_TEXEL0;
-        case G_CCMUX_TEXEL1:
-            return CC_TEXEL1;
-        case G_CCMUX_PRIMITIVE:
-            return CC_PRIM;
-        case G_CCMUX_SHADE:
-            return CC_SHADE;
-        case G_CCMUX_ENVIRONMENT:
-            return CC_ENV;
-        case G_CCMUX_TEXEL0_ALPHA:
-            return CC_TEXEL0A;
-        case G_CCMUX_LOD_FRACTION:
-            return CC_LOD;
-        default:
-            return CC_0;
-    }
-}
-
-static inline uint32_t color_comb(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
-    return color_comb_component(a) |
-           (color_comb_component(b) << 3) |
-           (color_comb_component(c) << 6) |
-           (color_comb_component(d) << 9);
 }
 
 static void gfx_dp_set_combine_mode(uint32_t rgb, uint32_t alpha) {
@@ -1479,7 +1475,7 @@ static void gfx_dp_set_color_image(uint32_t format, uint32_t size, uint32_t widt
 
 static void gfx_dp_full_sync()
 {
-    *plugin_gfx_info()->MI_INTR_REG |= MI_INTR_DP;
+    *Plugin::info().MI_INTR_REG |= MI_INTR_DP;
 }
 
 static void gfx_sp_set_other_mode(uint32_t shift, uint32_t num_bits, uint64_t mode) {
@@ -1501,13 +1497,25 @@ static inline void *seg_addr(uintptr_t w1)
 {
     int seg = (w1 >> 24) & 0x0f;
     int addr = w1 & 0xffffff;
-    return (void*) &plugin_gfx_info()->RDRAM[gSegments[seg] + addr];
+    return (void*) &Plugin::info().RDRAM[gSegments[seg] + addr];
 }
 
 #define C0(pos, width) ((cmd->words.w0 >> (pos)) & ((1U << width) - 1))
 #define C1(pos, width) ((cmd->words.w1 >> (pos)) & ((1U << width) - 1))
 
-static void gfx_run_dl(Gfx* cmd, int dlistSize) {
+static inline void gfx_inc(Gfx** gfx, uintptr_t* segAddr)
+{
+    *gfx = (Gfx*)((char*)(*gfx) + 8);
+    *segAddr += 8;
+}
+
+static inline void gfx_dec(Gfx** gfx, uintptr_t* segAddr)
+{
+    *gfx = (Gfx*) ((char*)(*gfx) - 8);
+    *segAddr -= 8;
+}
+
+static void gfx_run_dl(Gfx* cmd, uintptr_t segAddr) {
     int dummy = 0;
     for (;;) {
         uint32_t opcode = cmd->words.w0 >> 24;
@@ -1555,19 +1563,22 @@ static void gfx_run_dl(Gfx* cmd, int dlistSize) {
 #elif defined(F3DEX_GBI) || defined(F3DLP_GBI)
                 gfx_sp_vertex(C0(10, 6), C0(16, 8) / 2, seg_addr(cmd->words.w1));
 #else
-                gfx_sp_vertex((C0(0, 16)) / sizeof(Vtx), C0(16, 4), seg_addr(cmd->words.w1));
+                gfx_sp_vertex((C0(0, 16)) / sizeof(Vtx), C0(16, 4), (const Vtx*) seg_addr(cmd->words.w1));
 #endif
                 break;
             case G_DL:
                 if (C0(16, 1) == 0) {
                     // Push return address
-                    gfx_run_dl((Gfx *)seg_addr(cmd->words.w1), 0);
+                    gfx_run_dl((Gfx *)seg_addr(cmd->words.w1), cmd->words.w1);
                 } else {
-                    cmd = (Gfx *)seg_addr(cmd->words.w1);
-                    cmd = ((char*)cmd - 8);
+                    segAddr = cmd->words.w1;
+                    cmd = (Gfx *)seg_addr(segAddr);
+                    gfx_dec(&cmd, &segAddr);
                 }
                 break;
             case (uint8_t)G_ENDDL:
+            // HACK: Star Revenge 8 support
+            case 2:
                 return;
 #ifdef F3DEX_GBI_2
             case G_GEOMETRYMODE:
@@ -1674,10 +1685,10 @@ static void gfx_run_dl(Gfx* cmd, int dlistSize) {
                 tile = C1(24, 3);
                 ulx = C1(12, 12);
                 uly = C1(0, 12);
-                cmd = ((char*)cmd + 8);
+                gfx_inc(&cmd, &segAddr);
                 uls = C1(16, 16);
                 ult = C1(0, 16);
-                cmd = ((char*)cmd + 8);
+                gfx_inc(&cmd, &segAddr);
                 dsdx = C1(16, 16);
                 dtdy = C1(0, 16);
 #endif
@@ -1714,7 +1725,7 @@ static void gfx_run_dl(Gfx* cmd, int dlistSize) {
                 gfx_dp_full_sync();
                 break;
         }
-        cmd = ((char*) cmd + 8);
+        gfx_inc(&cmd, &segAddr);
     }
 }
 
@@ -1734,48 +1745,25 @@ void gfx_init(struct GfxWindowManagerAPI *wapi, struct GfxRenderingAPI *rapi, co
     gfx_wapi = wapi;
     gfx_rapi = rapi;
 
-    bool mustInit = false;
-
-    bool deinitAllowed = config_deinit_allowed();
-    if (!deinitAllowed)
-    {
-        static bool inited = false;
-        if (!inited)
-        {
-            mustInit = true;
-            inited = true;
-        }
-    }
-    else
-    {
-        mustInit = true;
-    }
-
-    if (mustInit)
-    {
-        gfx_wapi->init(game_name, start_in_fullscreen);
-        gfx_rapi->init();
-    }
+    gfx_wapi->init(game_name, start_in_fullscreen);
+    gfx_rapi->init();
 }
 
-void gfx_deinit(bool force)
+void gfx_deinit(void)
 {
-    if (force || config_deinit_allowed())
-    {
-        if (gfx_rapi == NULL || gfx_wapi == NULL)
-            return;
+    if (gfx_rapi == NULL || gfx_wapi == NULL)
+        return;
 
-        gfx_texture_cache_drop();
-        gfx_color_combiner_cache_drop();
-        memset(&rdp, 0, sizeof(rdp));
-        memset(&rsp, 0, sizeof(rsp));
-        memset(&rendering_state, 0, sizeof(rendering_state));
+    gfx_texture_cache_drop();
+    gfx_color_combiner_cache_drop();
+    memset(&rdp, 0, sizeof(rdp));
+    memset(&rsp, 0, sizeof(rsp));
+    memset(&rendering_state, 0, sizeof(rendering_state));
 
-        gfx_rapi->deinit();
-        gfx_wapi->deinit();
-        gfx_rapi = NULL;
-        gfx_wapi = NULL;
-    }
+    gfx_rapi->deinit();
+    gfx_wapi->deinit();
+    gfx_rapi = NULL;
+    gfx_wapi = NULL;
 }
 
 struct GfxRenderingAPI *gfx_get_current_rendering_api(void) {
@@ -1798,7 +1786,7 @@ void gfx_start_frame(void) {
     gfx_current_dimensions.fixup_factor = (4.0f / 3.0f) / ((float)gfx_current_dimensions.width / (float)gfx_current_dimensions.height);
 }
 
-void gfx_run(Gfx *commands, int dlistSize) {
+void gfx_run(void* commands) {
     gfx_sp_reset();
 
     if (!gfx_wapi->start_frame()) {
@@ -1817,7 +1805,7 @@ void gfx_run(Gfx *commands, int dlistSize) {
     
     double t0 = gfx_wapi->get_time();
     gfx_rapi->start_frame();
-    gfx_run_dl(commands, dlistSize);
+    gfx_run_dl((Gfx*) commands, (uintptr_t) commands);
     gfx_flush();
     double t1 = gfx_wapi->get_time();
     //printf("Process %f %f\n", t1, t1 - t0);

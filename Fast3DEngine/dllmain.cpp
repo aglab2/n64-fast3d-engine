@@ -4,6 +4,7 @@
 
 #include "../gfx_pc.h"
 #include "../gfx_direct3d11.h"
+#include "../gfx_direct3d12.h"
 #include "../gfx_dxgi.h"
 #include "../gfx_opengl.h"
 #include "dwnd.h"
@@ -33,7 +34,8 @@ public:
     bool execute()
     {
         gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", false /*fullscreen*/);
-        // gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64");
+        // gfx_init(&gfx_dxgi_api, &gfx_direct3d12_api, "SM64", false /*fullscreen*/);
+        // gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", false);
         return true;
     }
 };
@@ -43,7 +45,7 @@ class DeinitOperation : public Operation
 public:
     bool execute()
     {
-        gfx_deinit(false /*force*/);
+        gfx_deinit();
         return false;
     }
 };
@@ -57,7 +59,7 @@ public:
         auto dlistStart = *(uint32_t*)(info.DMEM + 0xff0);
         auto dlistSize = *(uint32_t*)(info.DMEM + 0xff4);
         gfx_start_frame();
-        gfx_run(&info.RDRAM[dlistStart], dlistSize);
+        gfx_run(&info.RDRAM[dlistStart]);
         gfx_end_frame();
         return true;
     }
@@ -319,6 +321,8 @@ EXPORT void CALL RomOpen(void)
     lck.lock();
     gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
 #endif
+
+    int a = 0;
 }
 
 /******************************************************************

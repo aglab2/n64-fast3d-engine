@@ -236,7 +236,7 @@ static void calculate_sync_interval() {
 }
 
 static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
-    Plugin::resize();
+    Plugin::resize(false);
 
     LARGE_INTEGER qpc_init, qpc_freq;
     QueryPerformanceCounter(&qpc_init);
@@ -259,7 +259,10 @@ static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
 }
 
 static void gfx_dxgi_deinit() {
-    dxgi.swap_chain.Reset();
+    dxgi.h_wnd = nullptr;
+    FreeLibrary(dxgi.dxgi_module);
+    dxgi.dxgi_module = 0;
+
     dxgi = {};
 }
 
@@ -268,7 +271,10 @@ static void gfx_dxgi_set_fullscreen_changed_callback(void (*on_fullscreen_change
 }
 
 static void gfx_dxgi_set_fullscreen(bool enable) {
+    // Plugin::resize(enable);
     toggle_borderless_window_full_screen(enable, true);
+    // Plugin::resize(enable);
+    gfx_dxgi_on_resize();
 }
 
 static void gfx_dxgi_set_keyboard_callbacks(bool (*on_key_down)(int scancode), bool (*on_key_up)(int scancode), void (*on_all_keys_up)(void)) {
@@ -422,7 +428,7 @@ static void gfx_dxgi_swap_buffers_end(void) {
 
     if (!dxgi.dropped_frame) {
         if (dxgi.waitable_object != nullptr) {
-            WaitForSingleObject(dxgi.waitable_object, INFINITE);
+            WaitForSingleObject(dxgi.waitable_object, 1000);
         }
         // else TODO: maybe sleep until some estimated time the frame will be shown to reduce lag
     }
@@ -485,7 +491,7 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
         // The same goes for IDXGISwapChain::ResizeBuffers(), however that function is currently only called from the message handler.
         ThrowIfFailed(dxgi.factory->CreateSwapChainForHwnd(device, dxgi.h_wnd, &swap_chain_desc, nullptr, nullptr, &dxgi.swap_chain), "CreateSwapChainForHwnd");
     });
-    ThrowIfFailed(dxgi.factory->MakeWindowAssociation(dxgi.h_wnd, DXGI_MWA_NO_ALT_ENTER), "MakeWindowAssociation");
+    // ThrowIfFailed(dxgi.factory->MakeWindowAssociation(dxgi.h_wnd, DXGI_MWA_NO_ALT_ENTER), "MakeWindowAssociation");
     dxgi.factory.Reset();
 
     ComPtr<IDXGISwapChain2> swap_chain2;
@@ -504,6 +510,21 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
     dxgi.current_height = swap_chain_desc.Height - Plugin::statusBarHeight();
 
     return dxgi.swap_chain;
+}
+
+void gfx_dxgi_destroy_factory_and_device()
+{
+    dxgi.factory.Reset();
+}
+
+void gfx_dxgi_destroy_swap_chain()
+{
+    CloseHandle(dxgi.waitable_object);
+    dxgi.waitable_object = {};
+    dxgi.swap_chain.Reset();
+
+    dxgi.CreateDXGIFactory1 = nullptr;
+    dxgi.CreateDXGIFactory2 = nullptr;
 }
 
 HWND gfx_dxgi_get_h_wnd(void) {

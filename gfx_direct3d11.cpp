@@ -30,7 +30,7 @@
 #include "Fast3DEngine/plugin.h"
 
 #define THREE_POINT_FILTERING 0
-#define DEBUG_D3D 0
+#define DEBUG_D3D 1
 
 using namespace Microsoft::WRL; // For ComPtr
 
@@ -240,18 +240,19 @@ static void gfx_d3d11_init(void) {
 
     // Sample description to be used in back buffer and depth buffer
 
-    d3d.sample_description.Count   = Plugin::config().sampleCount();
-    d3d.sample_description.Quality = Plugin::config().sampleQuality();
-
-    // Create the swap chain
-    d3d.swap_chain = gfx_dxgi_create_swap_chain(d3d.device.Get());
+    d3d.sample_description.Count   = 1;
+    d3d.sample_description.Quality = 0;
 
     // Create D3D Debug device if in debug mode
 
 #if DEBUG_D3D
-    ThrowIfFailed(d3d.device->QueryInterface(__uuidof(ID3D11Debug), (void **) d3d.debug.GetAddressOf()),
-                  gfx_dxgi_get_h_wnd(), "Failed to get ID3D11Debug device.");
+    ThrowIfFailed(d3d.device->QueryInterface(__uuidof(ID3D11Debug), (void**)d3d.debug.GetAddressOf()),
+        gfx_dxgi_get_h_wnd(), "Failed to get ID3D11Debug device.");
 #endif
+
+
+    // Create the swap chain
+    d3d.swap_chain = gfx_dxgi_create_swap_chain(d3d.device.Get());
 
     // Create views
 
@@ -302,9 +303,34 @@ static void gfx_d3d11_init(void) {
 }
 
 static void gfx_d3d11_deinit(void) {
+    d3d.last_blend_state.Reset();
+    d3d.last_resource_views[0].Reset();
+    d3d.last_resource_views[1].Reset();
+    d3d.last_sampler_states[0].Reset();
+    d3d.last_sampler_states[1].Reset();
+
     d3d.textures.clear();
     for (int i = 0; i < 64; i++)
         d3d.shader_program_pool[i] = {};
+
+    d3d.per_draw_cb.Reset();
+    d3d.per_frame_cb.Reset();
+    d3d.vertex_buffer.Reset();
+    d3d.depth_stencil_state.Reset();
+    d3d.rasterizer_state.Reset();
+    d3d.depth_stencil_view.Reset();
+    d3d.backbuffer_view.Reset();
+
+    gfx_dxgi_destroy_swap_chain();
+    d3d.swap_chain.Reset();
+    gfx_dxgi_destroy_factory_and_device();
+    d3d.context->Flush();
+    d3d.context.Reset();
+
+    d3d.device.Reset();
+
+    FreeLibrary(d3d.d3d11_module);
+    FreeLibrary(d3d.d3dcompiler_module);
     d3d = {};
 }
 
@@ -681,7 +707,6 @@ static void gfx_d3d11_on_resize(void) {
 
 static void gfx_d3d11_start_frame(void) {
     // Set render targets
-
     d3d.context->OMSetRenderTargets(1, d3d.backbuffer_view.GetAddressOf(), d3d.depth_stencil_view.Get());
 
     // Clear render targets

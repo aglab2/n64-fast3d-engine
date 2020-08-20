@@ -14,14 +14,13 @@
 
 #include <stdio.h>
 
-#if FOR_WINDOWS
-#include <GL/glew.h>
-#endif
-
 #include "gfx_cc.h"
+#include "gfx_opengl.h"
 #include "gfx_rendering_api.h"
 
 #include "Fast3DEngine/plugin.h"
+
+#include <GL/glew.h>
 
 struct ShaderProgram {
     uint32_t shader_id;
@@ -473,12 +472,12 @@ static void gfx_opengl_set_zmode_decal(bool zmode_decal) {
 }
 
 static void gfx_opengl_set_viewport(int x, int y, int width, int height) {
-    glViewport(x, y + plugin_gfx_status_bar_height(), width, height);
+    glViewport(x, y + Plugin::statusBarHeight(), width, height);
     current_height = height;
 }
 
 static void gfx_opengl_set_scissor(int x, int y, int width, int height) {
-    glScissor(x, y + plugin_gfx_status_bar_height(), width, height);
+    glScissor(x, y + Plugin::statusBarHeight(), width, height);
 }
 
 static void gfx_opengl_set_use_alpha(bool use_alpha) {
@@ -553,7 +552,9 @@ struct GfxRenderingAPI gfx_opengl_api = {
     gfx_opengl_init,
     gfx_opengl_deinit,
     gfx_opengl_on_resize,
-    gfx_opengl_start_frame
+    gfx_opengl_start_frame,
+    []() {},
+    []() {},
 };
 
 #endif

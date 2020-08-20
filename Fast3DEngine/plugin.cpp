@@ -2,7 +2,7 @@
 
 const char* Plugin::sName()
 {
-    return "LINK's Fast3DEngine v0.4";
+    return "LINK's Fast3DEngine v0.7";
 }
 
 void Plugin::sSetInfo(GFX_INFO i)
@@ -26,35 +26,30 @@ int Plugin::sStatusBarHeight()
     return statusRect_.bottom - statusRect_.top - 1;
 }
 
-void Plugin::sResize()
+void Plugin::sResize(bool fs)
 {
-    int width = config_.width();
-    int height = config_.height();
+    int width, height;
+    if (fs)
+    {
+        width = config_.fullScreenWidth();
+        height = config_.fullScreenHeight();
+    }
+    else
+    {
+        width = config_.width();
+        height = config_.height();
+    }
+    auto hWnd = gfxInfo_.hWnd;
     RECT windowRect;
 
-    GetClientRect(gfxInfo_.hWnd, &windowRect);
+    GetClientRect(hWnd, &windowRect);
 
     auto offset = sStatusBarHeight();
     windowRect.right = windowRect.left + width - 1;
     windowRect.bottom = windowRect.top + height - 1 + offset;
 
-    AdjustWindowRect(&windowRect, GetWindowLong(sHWnd(), GWL_STYLE), GetMenu(sHWnd()) != NULL);
+    AdjustWindowRect(&windowRect, GetWindowLong(hWnd, GWL_STYLE), GetMenu(hWnd) != NULL);
 
-    SetWindowPos(sHWnd(), NULL, 0, 0, windowRect.right - windowRect.left + 1,
+    SetWindowPos(hWnd, NULL, 0, 0, windowRect.right - windowRect.left + 1,
         windowRect.bottom - windowRect.top + 2, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOMOVE);
-}
-
-GFX_INFO* plugin_gfx_info()
-{
-    return &Plugin::info();
-}
-
-float config_nerf_fog_factor()
-{
-    return Plugin::config().nerfFogFactor();
-}
-
-bool config_deinit_allowed()
-{
-    return Plugin::config().deinitAllowed();
 }

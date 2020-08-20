@@ -3,8 +3,6 @@
 #include <Windows.h>
 #include "Gfx #1.3.h"
 
-#ifdef __cplusplus
-
 #include "config.h"
 
 class Plugin
@@ -17,7 +15,7 @@ public:
     static int statusBarHeight()     { return me().sStatusBarHeight(); }
     static const Config& config()    { return me().config_; }
 
-    static void resize()             { return me().sResize(); }
+    static void resize(bool fs)      { return me().sResize(fs); }
 
 private:
     const char* sName();
@@ -26,7 +24,7 @@ private:
     HWND sHWnd();
     int sStatusBarHeight();
 
-    void sResize();
+    void sResize(bool fs);
 
     static Plugin& me()
     {
@@ -38,15 +36,3 @@ private:
     RECT statusRect_;
     Config config_;
 };
-
-extern "C"
-{
-#endif
-
-GFX_INFO* plugin_gfx_info();
-float config_nerf_fog_factor();
-bool config_deinit_allowed();
-
-#ifdef __cplusplus
-}
-#endif

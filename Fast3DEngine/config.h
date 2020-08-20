@@ -21,30 +21,29 @@ public:
 
     int width()           const { return width_;     }
     int height()          const { return height_;    }
+    int fullScreenWidth()  const { return fullScreenWidth_; }
+    int fullScreenHeight() const { return fullScreenHeight_; }
     VsyncMode vsyncMode() const { return vsyncMode_; }
-    int sampleCount()     const { return sampleCount_; }
-    int sampleQuality()   const { return sampleQuality_; }
     int reducedLatency()  const { return reducedLatency_; }
     float nerfFogFactor() const { return nerfFogFactor_; }
     float shadowBias()    const { return shadowBias_; }
-    bool deinitAllowed()  const { return deinitAllowed_; }
+    bool captureFrames()  const { return captureFrames_; }
 
     const std::string& configPath() const { return configPath_; }
 
 private:
     int width_ = 640;
     int height_ = 480;
-    int sampleCount_ = 1;
-    int sampleQuality_ = 0;
+    int fullScreenWidth_ = 1920;
+    int fullScreenHeight_ = 1080;
     bool reducedLatency_ = true;
     VsyncMode vsyncMode_ = VsyncMode::DISABLED;
     float nerfFogFactor_ = 0;
     float shadowBias_ = 2.f;
-    bool deinitAllowed_ = false;
+    bool captureFrames_ = false;
     std::string configPath_;
 
     static VsyncMode toVsyncMode(const std::string&);
 
     bool read(const std::string&);
-    void write(const std::string&);
 };

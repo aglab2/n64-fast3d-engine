@@ -47,11 +47,6 @@ try
     width_ = config["width"].as<int>();
     height_ = config["height"].as<int>();
     vsyncMode_ = toVsyncMode(config["vsync"].as<std::string>());
-    sampleCount_ = config["sample"].as<int>();
-    if (0 == sampleCount_)
-        sampleCount_ = 1;
-
-    sampleQuality_ = config["sampleQuality"].as<int>();
     reducedLatency_ = config["reducedLatency"].as<std::string>() == "allow" ? true : false;
     try
     {
@@ -65,36 +60,29 @@ try
     catch (...) {}
     try
     {
-        deinitAllowed_ = config["deinitAllowed"].as<bool>();
+        captureFrames_ = config["captureFrames"].as<bool>();
     }
     catch (...) {}
+    try
+    {
+        fullScreenWidth_ = config["fullScreenWidth"].as<int>();
+    }
+    catch (...) 
+    {
+        fullScreenWidth_ = width_;
+    }
+    try
+    {
+        fullScreenWidth_ = config["fullScreenHeight"].as<int>();
+    }
+    catch (...) 
+    {
+        fullScreenHeight_ = height_;
+    }
     return true;
 }
 catch (...)
 {
     MessageBox(nullptr, "Failed to read 'f3d.yaml' config file, using default", "Config Reader", MB_OK | MB_ICONERROR);
     return false;
-}
-
-
-void Config::write(const std::string& p)
-try
-{
-    YAML::Node config;
-    config["width"] = width_;
-    config["height"] = height_;
-    config["vsync"] = "disabled";
-    config["sample"] = sampleCount_;
-    config["sampleQuality"] = sampleQuality_;
-    config["reducedLatency"] = reducedLatency_ ? "allow" : "disallow";
-    config["nerfFog"] = nerfFogFactor_;
-    config["shadowBias"] = shadowBias_;
-    config["deinitAllowed"] = deinitAllowed_;
-
-    std::ofstream fout(p);
-    fout << config;
-}
-catch (...)
-{
-    MessageBox(nullptr, "Failed to write 'f3d.yaml' config file", "Config Reader", MB_OK | MB_ICONERROR);
 }

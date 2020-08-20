@@ -72,7 +72,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)\xxHash;$(SolutionDir)\yaml-cpp\yaml-cpp\include</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)\xxHash;$(SolutionDir)\yaml-cpp\yaml-cpp\include;$(SolutionDir)\glew\glew\include</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(SolutionDir)Win32\Debug\lib</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -80,7 +80,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)\xxHash;$(SolutionDir)\yaml-cpp\yaml-cpp\include</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(SolutionDir)\xxHash;$(SolutionDir)\yaml-cpp\yaml-cpp\include;$(SolutionDir)\glew\glew\include</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86;$(SolutionDir)Win32\Release\lib</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -91,18 +91,18 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>ENABLE_DX11;GLEW_STATIC;_CRT_SECURE_NO_WARNINGS;ENABLE_OPENGL;WIN32;_DEBUG;FAST3DENGINE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ENABLE_DX11;ENABLE_DX12;GLEW_STATIC;_CRT_SECURE_NO_WARNINGS;ENABLE_OPENGL;WIN32;_DEBUG;FAST3DENGINE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>libyaml.lib;D3DCompiler.lib;d3d11.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;dxguid.lib;libyaml.lib;D3DCompiler.lib;d3d11.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -127,7 +127,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>ENABLE_DX11;GLEW_STATIC;_CRT_SECURE_NO_WARNINGS;ENABLE_OPENGL;WIN32;NDEBUG;FAST3DENGINE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ENABLE_DX11;ENABLE_DX12;GLEW_STATIC;_CRT_SECURE_NO_WARNINGS;ENABLE_OPENGL;WIN32;NDEBUG;FAST3DENGINE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
@@ -140,7 +140,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>libyaml.lib;D3DCompiler.lib;d3d11.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;dxguid.lib;libyaml.lib;D3DCompiler.lib;d3d11.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -167,24 +167,31 @@
     <ClInclude Include="..\gfx_cc.h" />
     <ClInclude Include="..\gfx_direct3d11.h" />
     <ClInclude Include="..\gfx_direct3d12.h" />
+    <ClInclude Include="..\gfx_direct3d12_guids.h" />
     <ClInclude Include="..\gfx_direct3d_common.h" />
     <ClInclude Include="..\gfx_dxgi.h" />
+    <ClInclude Include="..\gfx_opengl.h" />
     <ClInclude Include="..\gfx_pc.h" />
     <ClInclude Include="..\gfx_rendering_api.h" />
     <ClInclude Include="..\gfx_window_manager_api.h" />
     <ClInclude Include="config.h" />
+    <ClInclude Include="dwnd.h" />
     <ClInclude Include="Gfx #1.3.h" />
     <ClInclude Include="os.h" />
     <ClInclude Include="plugin.h" />
+    <ClInclude Include="sink_writer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\gfx_cc.c" />
     <ClCompile Include="..\gfx_direct3d11.cpp" />
+    <ClCompile Include="..\gfx_direct3d12.cpp" />
     <ClCompile Include="..\gfx_direct3d_common.cpp" />
     <ClCompile Include="..\gfx_dxgi.cpp" />
-    <ClCompile Include="..\gfx_pc.c" />
+    <ClCompile Include="..\gfx_opengl.cpp" />
+    <ClCompile Include="..\gfx_pc.cpp" />
     <ClCompile Include="config.cpp" />
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="dwnd.cpp" />
     <ClCompile Include="os.cpp" />
     <ClCompile Include="plugin.cpp" />
   </ItemGroup>

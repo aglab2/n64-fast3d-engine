@@ -12,7 +12,7 @@ enum {
     CC_SHADE,
     CC_ENV,
     CC_TEXEL0A,
-    CC_LOD
+    CC_1,
 };
 
 enum {
