@@ -30,7 +30,7 @@
 #include "Fast3DEngine/plugin.h"
 
 #define THREE_POINT_FILTERING 0
-#define DEBUG_D3D 1
+#define DEBUG_D3D 0
 
 using namespace Microsoft::WRL; // For ComPtr
 

@@ -141,6 +141,7 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
     // "fullscreen optimizations" the latency is eliminated.
 
     static LONG windowedStyle;
+    static HMENU windowedMenu;
 
     if (enable == dxgi.is_full_screen) {
         return;
@@ -159,6 +160,9 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
             SetWindowPos(dxgi.h_wnd, NULL, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
             ShowWindow(dxgi.h_wnd, SW_RESTORE);
         }
+
+        if (windowedMenu)
+            SetMenu(dxgi.h_wnd, windowedMenu);
 
         dxgi.is_full_screen = false;
     } else {
@@ -185,6 +189,10 @@ static void toggle_borderless_window_full_screen(bool enable, bool call_callback
 
         SetWindowLongPtr(dxgi.h_wnd, GWL_STYLE, WS_VISIBLE | WS_POPUP);
         SetWindowPos(dxgi.h_wnd, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top, SWP_FRAMECHANGED);
+
+        windowedMenu = GetMenu(dxgi.h_wnd);
+        if (windowedMenu)
+            SetMenu(dxgi.h_wnd, NULL);
 
         dxgi.is_full_screen = true;
     }
@@ -271,10 +279,9 @@ static void gfx_dxgi_set_fullscreen_changed_callback(void (*on_fullscreen_change
 }
 
 static void gfx_dxgi_set_fullscreen(bool enable) {
-    // Plugin::resize(enable);
-    toggle_borderless_window_full_screen(enable, true);
-    // Plugin::resize(enable);
+    Plugin::resize(enable);
     gfx_dxgi_on_resize();
+    toggle_borderless_window_full_screen(enable, true);
 }
 
 static void gfx_dxgi_set_keyboard_callbacks(bool (*on_key_down)(int scancode), bool (*on_key_up)(int scancode), void (*on_all_keys_up)(void)) {
@@ -480,7 +487,7 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
     swap_chain_desc.Height = 0;
     swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    swap_chain_desc.Scaling = win8 ? DXGI_SCALING_NONE : DXGI_SCALING_STRETCH;
+    swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
     swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // Apparently this was backported to Win 7 Platform Update
     swap_chain_desc.Flags = dxgi_13 ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0;
     swap_chain_desc.SampleDesc.Count = 1;

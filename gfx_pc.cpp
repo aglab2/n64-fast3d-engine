@@ -530,11 +530,17 @@ static void import_texture_ci8(int tile) {
     gfx_rapi->upload_texture(rgba32_buf, width, height);
 }
 
+int filter(unsigned int, struct _EXCEPTION_POINTERS*)
+{
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 static void import_texture(int tile) {
     uint8_t fmt = rdp.texture_tile.fmt;
     uint8_t siz = rdp.texture_tile.siz;
 
     uint64_t hash;
+    __try
     {
         XXH3_state_t state;
         XXH3_64bits_reset(&state);
@@ -545,51 +551,74 @@ static void import_texture(int tile) {
         }
         hash = XXH3_64bits_digest(&state);
     }
-    
+    __except (filter(GetExceptionCode(), GetExceptionInformation()))
+    {
+        hash = 0;
+        rdp.loaded_texture[tile].addr = 0;
+    }
+
     if (gfx_texture_cache_lookup(tile, &rendering_state.textures[tile], hash, rdp.loaded_texture[tile].addr, fmt, siz)) {
         return;
     }
-    
+
     int t0 = get_time();
-    if (fmt == G_IM_FMT_RGBA) {
-        if (siz == G_IM_SIZ_16b) {
-            import_texture_rgba16(tile);
-        } else if (siz == G_IM_SIZ_32b) {
-            import_texture_rgba32(tile);
-        } else {
-            abort();
-        }
-    } else if (fmt == G_IM_FMT_IA) {
-        if (siz == G_IM_SIZ_4b) {
-            import_texture_ia4(tile);
-        } else if (siz == G_IM_SIZ_8b) {
-            import_texture_ia8(tile);
-        } else if (siz == G_IM_SIZ_16b) {
-            import_texture_ia16(tile);
-        } else {
-            abort();
-        }
-    } else if (fmt == G_IM_FMT_CI) {
-        if (siz == G_IM_SIZ_4b) {
-            import_texture_ci4(tile);
-        } else if (siz == G_IM_SIZ_8b) {
-            import_texture_ci8(tile);
-        } else {
-            abort();
-        }
+    if (0 == rdp.loaded_texture[tile].addr)
+    {
+        uint8_t buf[4] = {};
+        gfx_rapi->upload_texture(buf, 1, 1);
     }
-    else if (fmt == G_IM_FMT_I) {
-        if (siz == G_IM_SIZ_4b) {
-            import_texture_i4(tile);
+    else
+    {
+        if (fmt == G_IM_FMT_RGBA) {
+            if (siz == G_IM_SIZ_16b) {
+                import_texture_rgba16(tile);
+            }
+            else if (siz == G_IM_SIZ_32b) {
+                import_texture_rgba32(tile);
+            }
+            else {
+                abort();
+            }
         }
-        else if (siz == G_IM_SIZ_8b) {
-            import_texture_i8(tile);
+        else if (fmt == G_IM_FMT_IA) {
+            if (siz == G_IM_SIZ_4b) {
+                import_texture_ia4(tile);
+            }
+            else if (siz == G_IM_SIZ_8b) {
+                import_texture_ia8(tile);
+            }
+            else if (siz == G_IM_SIZ_16b) {
+                import_texture_ia16(tile);
+            }
+            else {
+                abort();
+            }
+        }
+        else if (fmt == G_IM_FMT_CI) {
+            if (siz == G_IM_SIZ_4b) {
+                import_texture_ci4(tile);
+            }
+            else if (siz == G_IM_SIZ_8b) {
+                import_texture_ci8(tile);
+            }
+            else {
+                abort();
+            }
+        }
+        else if (fmt == G_IM_FMT_I) {
+            if (siz == G_IM_SIZ_4b) {
+                import_texture_i4(tile);
+            }
+            else if (siz == G_IM_SIZ_8b) {
+                import_texture_i8(tile);
+            }
+            else {
+                abort();
+            }
         }
         else {
             abort();
         }
-    } else {
-        abort();
     }
     int t1 = get_time();
     //printf("Time diff: %d\n", t1 - t0);

@@ -11,7 +11,11 @@
 
 #include <shellapi.h>
 
-// #define RSPTHREAD
+#define OPENGL
+
+#ifdef OPENGL
+#define RSPTHREAD
+#endif
 
 #ifdef RSPTHREAD
 #include <condition_variable>
@@ -28,14 +32,19 @@ public:
 #endif
 };
 
+static bool gFullscreen = false;
+
 class InitOperation : public Operation
 {
 public:
     bool execute()
     {
-        gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", false /*fullscreen*/);
-        // gfx_init(&gfx_dxgi_api, &gfx_direct3d12_api, "SM64", false /*fullscreen*/);
-        // gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", false);
+#ifdef OPENGL
+        gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", gFullscreen);
+#else
+        gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", gFullscreen /*fullscreen*/);
+#endif
+        // gfx_init(&gfx_dxgi_api, &gfx_direct3d12_api, "SM64", gFullscreen /*fullscreen*/);
         return true;
     }
 };
@@ -125,7 +134,6 @@ EXPORT void CALL CaptureScreen(char* Directory)
   input:    none
   output:   none
 *******************************************************************/
-static bool gFullscreen = false;
 EXPORT void CALL ChangeWindow(void)
 {
     gFullscreen = !gFullscreen;
@@ -153,7 +161,7 @@ EXPORT void CALL CloseDLL(void)
 *******************************************************************/
 EXPORT void CALL DllAbout(HWND hParent)
 {
-
+    
 }
 
 /******************************************************************
