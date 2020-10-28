@@ -274,6 +274,15 @@ static struct ShaderProgram *gfx_opengl_create_and_load_new_shader(uint32_t shad
     } else {
         append_line(fs_buf, &fs_len, "gl_FragColor = vec4(texel, 1.0);");
     }
+
+    /*
+    if (cc_features.opt_alpha) {
+        append_line(fs_buf, &fs_len, "gl_FragColor = vec4(pow(texel.rgb, vec3(1.0 / 2.2)), texel.a);");
+    }
+    else {
+        append_line(fs_buf, &fs_len, "gl_FragColor = vec4(pow(texel, vec3(1.0 / 2.2)), 1.0);");
+    }
+    */
     append_line(fs_buf, &fs_len, "}");
 
     vs_buf[vs_len] = '\0';
@@ -463,7 +472,7 @@ static void gfx_opengl_set_depth_mask(bool z_upd) {
 
 static void gfx_opengl_set_zmode_decal(bool zmode_decal) {
     if (zmode_decal) {
-        glPolygonOffset(-2, -2);
+        glPolygonOffset(-Plugin::config().shadowBias(), -Plugin::config().shadowBias());
         glEnable(GL_POLYGON_OFFSET_FILL);
     } else {
         glPolygonOffset(0, 0);

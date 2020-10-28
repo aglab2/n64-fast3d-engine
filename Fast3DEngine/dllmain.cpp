@@ -11,94 +11,77 @@
 
 #include <shellapi.h>
 
-#define OPENGL
+// #define OPENGL
 
 #ifdef OPENGL
 #define RSPTHREAD
 #endif
 
+#include <atomic>
 #ifdef RSPTHREAD
 #include <condition_variable>
+#include <deque>
 #include <mutex>
+#include <future>
 #include <thread>
 #endif
 
-class Operation
-{
-#ifdef RSPTHREAD
-public:
-    virtual ~Operation() = default;
-    virtual bool execute() = 0;
-#endif
-};
-
-static bool gFullscreen = false;
-
-class InitOperation : public Operation
-{
-public:
-    bool execute()
-    {
-#ifdef OPENGL
-        gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", gFullscreen);
-#else
-        gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", gFullscreen /*fullscreen*/);
-#endif
-        // gfx_init(&gfx_dxgi_api, &gfx_direct3d12_api, "SM64", gFullscreen /*fullscreen*/);
-        return true;
-    }
-};
-
-class DeinitOperation : public Operation
-{
-public:
-    bool execute()
-    {
-        gfx_deinit();
-        return false;
-    }
-};
-
-class DlOperation : public Operation
-{
-public:
-    bool execute()
-    {
-        auto& info = Plugin::info();
-        auto dlistStart = *(uint32_t*)(info.DMEM + 0xff0);
-        auto dlistSize = *(uint32_t*)(info.DMEM + 0xff4);
-        gfx_start_frame();
-        gfx_run(&info.RDRAM[dlistStart]);
-        gfx_end_frame();
-        return true;
-    }
-};
+static std::atomic_bool gFullscreen = false;
+static std::atomic_bool gNewTasksAllowed = false;
 
 #ifdef RSPTHREAD
-static std::unique_ptr<Operation> gOperation;
+using Task = std::packaged_task<void(void)>;
+static std::atomic_bool gRunning = false;
+static std::deque<Task> gOperations;
 static std::condition_variable gOperationCV;
 static std::mutex gOperationMutex;
 static std::thread gRSPThread;
 
 static void RSPThread()
 {
-    bool running = true;
-
     std::unique_lock<std::mutex> lck(gOperationMutex);
-    do
+    while(gRunning)
     {
-        gOperationCV.wait(lck, [] { return gOperation.get(); });
+        if (gOperations.empty())
+            gOperationCV.wait(lck, [] { return !gOperations.empty(); });
 
-        running = gOperation->execute();
-        gOperation.reset();
-
+        auto task = std::move(gOperations.front());
+        gOperations.pop_front();
+        
         lck.unlock();
-        gOperationCV.notify_one();
+        task();
         lck.lock();
-    } 
-    while (running);
+    }
 }
 #endif
+
+static void plugin_init(void)
+{
+#ifdef OPENGL
+    gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", gFullscreen);
+#else
+    gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", gFullscreen /*fullscreen*/);
+#endif
+    // gfx_init(&gfx_dxgi_api, &gfx_direct3d12_api, "SM64", gFullscreen /*fullscreen*/);
+}
+
+static void plugin_deinit(void)
+{
+    gfx_deinit();
+#ifdef OPENGL
+    gRunning = false;
+#endif
+}
+
+static void plugin_dl(void)
+{
+    auto& info = Plugin::info();
+    auto dlistStart = *(uint32_t*)(info.DMEM + 0xff0);
+    auto dlistSize = *(uint32_t*)(info.DMEM + 0xff4);
+    gfx_start_frame();
+    gfx_run(&info.RDRAM[dlistStart]);
+    gfx_end_frame();
+}
 
 BOOL APIENTRY DllMain( HMODULE hModule,
                        DWORD  ul_reason_for_call,
@@ -264,16 +247,20 @@ EXPORT void CALL MoveScreen(int xpos, int ypos)
 *******************************************************************/
 EXPORT void CALL ProcessDList(void)
 {
+    if (!gNewTasksAllowed)
+        return;
+
 #ifndef RSPTHREAD
-    DlOperation operation;
-    operation.execute();
+    plugin_dl();
 #else
-    std::unique_lock<std::mutex> lck(gOperationMutex);
-    gOperation = std::make_unique<DlOperation>();
-    lck.unlock();
+    Task task(plugin_dl);
+    auto future = task.get_future();
+    {
+        std::unique_lock<std::mutex> lck(gOperationMutex);
+        gOperations.emplace_back(std::move(task));
+    }
     gOperationCV.notify_one();
-    lck.lock();
-    gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
+    future.get();
 #endif
 }
 
@@ -294,16 +281,20 @@ EXPORT void CALL ProcessRDPList(void) { }
 *******************************************************************/
 EXPORT void CALL RomClosed(void)
 {
+    gNewTasksAllowed = false;
+
 #ifndef RSPTHREAD
-    DeinitOperation operation;
-    operation.execute();
+    plugin_deinit();
 #else
-    std::unique_lock<std::mutex> lck(gOperationMutex);
-    gOperation = std::make_unique<DeinitOperation>();
-    lck.unlock();
+    Task task(plugin_deinit);
+    auto future = task.get_future();
+    {
+        std::unique_lock<std::mutex> lck(gOperationMutex);
+        gOperations.emplace_back(std::move(task));
+    }
     gOperationCV.notify_one();
-    lck.lock();
-    gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
+    future.get();
+
     gRSPThread.join();
 #endif
 }
@@ -318,19 +309,22 @@ EXPORT void CALL RomClosed(void)
 EXPORT void CALL RomOpen(void)
 {
 #ifndef RSPTHREAD
-    InitOperation operation;
-    operation.execute();
+    plugin_init();
 #else
-    std::unique_lock<std::mutex> lck(gOperationMutex);
-    gOperation = std::make_unique<InitOperation>();
+    gRunning = true;
     gRSPThread = std::thread(RSPThread);
-    lck.unlock();
+
+    Task task(plugin_init);
+    auto future = task.get_future();
+    {
+        std::unique_lock<std::mutex> lck(gOperationMutex);
+        gOperations.emplace_back(std::move(task));
+    }
     gOperationCV.notify_one();
-    lck.lock();
-    gOperationCV.wait(lck, [] { return nullptr == gOperation.get(); });
+    future.get();
 #endif
 
-    int a = 0;
+    gNewTasksAllowed = true;
 }
 
 /******************************************************************
