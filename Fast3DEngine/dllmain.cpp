@@ -11,11 +11,7 @@
 
 #include <shellapi.h>
 
-// #define OPENGL
-
-#ifdef OPENGL
 #define RSPTHREAD
-#endif
 
 #include <atomic>
 #ifdef RSPTHREAD
@@ -57,18 +53,24 @@ static void RSPThread()
 
 static void plugin_init(void)
 {
-#ifdef OPENGL
-    gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", gFullscreen);
-#else
-    gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", gFullscreen /*fullscreen*/);
-#endif
+    auto& config = Plugin::config();
+    switch (config.renderingApi())
+    {
+    case RenderingAPI::D3D11:
+        gfx_init(&gfx_dxgi_api, &gfx_direct3d11_api, "SM64", gFullscreen /*fullscreen*/);
+        break;
+    case RenderingAPI::OPENGL:
+        gfx_init(&gfx_dwnd, &gfx_opengl_api, "SM64", gFullscreen);
+        break;
+    }
+
     // gfx_init(&gfx_dxgi_api, &gfx_direct3d12_api, "SM64", gFullscreen /*fullscreen*/);
 }
 
 static void plugin_deinit(void)
 {
     gfx_deinit();
-#ifdef OPENGL
+#ifdef RSPTHREAD
     gRunning = false;
 #endif
 }
@@ -80,6 +82,10 @@ static void plugin_dl(void)
     auto dlistSize = *(uint32_t*)(info.DMEM + 0xff4);
     gfx_start_frame();
     gfx_run(&info.RDRAM[dlistStart]);
+}
+
+static void plugin_draw(void)
+{
     gfx_end_frame();
 }
 
@@ -252,12 +258,14 @@ EXPORT void CALL ProcessDList(void)
 
 #ifndef RSPTHREAD
     plugin_dl();
+    plugin_draw();
 #else
     Task task(plugin_dl);
     auto future = task.get_future();
     {
         std::unique_lock<std::mutex> lck(gOperationMutex);
         gOperations.emplace_back(std::move(task));
+        gOperations.emplace_back(Task(plugin_draw));
     }
     gOperationCV.notify_one();
     future.get();

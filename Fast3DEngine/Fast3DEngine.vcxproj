@@ -179,7 +179,6 @@
     <ClInclude Include="Gfx #1.3.h" />
     <ClInclude Include="os.h" />
     <ClInclude Include="plugin.h" />
-    <ClInclude Include="sink_writer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\gfx_cc.c" />

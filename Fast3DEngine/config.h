@@ -14,20 +14,27 @@ enum class VsyncMode
     AUTOMATIC = 100,
 };
 
+enum class RenderingAPI
+{
+    D3D11,
+    OPENGL,
+};
+
 class Config
 {
 public:
     Config();
 
-    int width()           const { return width_;     }
-    int height()          const { return height_;    }
-    int fullScreenWidth()  const { return fullScreenWidth_; }
-    int fullScreenHeight() const { return fullScreenHeight_; }
-    VsyncMode vsyncMode() const { return vsyncMode_; }
-    int reducedLatency()  const { return reducedLatency_; }
-    float nerfFogFactor() const { return nerfFogFactor_; }
-    float shadowBias()    const { return shadowBias_; }
-    bool captureFrames()  const { return captureFrames_; }
+    auto width()            const { return width_;     }
+    auto height()           const { return height_;    }
+    auto fullScreenWidth()  const { return fullScreenWidth_; }
+    auto fullScreenHeight() const { return fullScreenHeight_; }
+    auto vsyncMode()        const { return vsyncMode_; }
+    auto reducedLatency()   const { return reducedLatency_; }
+    auto nerfFogFactor()    const { return nerfFogFactor_; }
+    auto shadowBias()       const { return shadowBias_; }
+    auto captureFrames()    const { return captureFrames_; }
+    auto renderingApi()     const { return renderingApi_; }
 
     const std::string& configPath() const { return configPath_; }
 
@@ -41,9 +48,8 @@ private:
     float nerfFogFactor_ = 0;
     float shadowBias_ = 2.f;
     bool captureFrames_ = false;
+    RenderingAPI renderingApi_ = RenderingAPI::D3D11;
     std::string configPath_;
-
-    static VsyncMode toVsyncMode(const std::string&);
 
     bool read(const std::string&);
 };

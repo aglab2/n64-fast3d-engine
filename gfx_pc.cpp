@@ -1838,12 +1838,12 @@ void gfx_run(void* commands) {
     gfx_flush();
     double t1 = gfx_wapi->get_time();
     //printf("Process %f %f\n", t1, t1 - t0);
-    gfx_rapi->end_frame();
-    gfx_wapi->swap_buffers_begin();
 }
 
 void gfx_end_frame(void) {
     if (!dropped_frame) {
+        gfx_rapi->end_frame();
+        gfx_wapi->swap_buffers_begin();
         gfx_rapi->finish_render();
         gfx_wapi->swap_buffers_end();
     }

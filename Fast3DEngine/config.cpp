@@ -25,7 +25,7 @@ Config::Config()
     //    write(configFile.u8string());
 }
 
-VsyncMode Config::toVsyncMode(const std::string& mode)
+static VsyncMode toVsyncMode(const std::string& mode)
 {
     try
     {
@@ -37,6 +37,15 @@ VsyncMode Config::toVsyncMode(const std::string& mode)
         return VsyncMode::AUTOMATIC;
     
     return VsyncMode::DISABLED;
+}
+
+static RenderingAPI toRenderingApi(std::string api)
+{
+    std::transform(api.begin(), api.end(), api.begin(), [](unsigned char c) { return std::tolower(c); });
+    if ("opengl" == api)
+        return RenderingAPI::OPENGL;
+
+    return RenderingAPI::D3D11;
 }
 
 bool Config::read(const std::string& p)
@@ -79,6 +88,15 @@ try
     {
         fullScreenHeight_ = height_;
     }
+    try
+    {
+        renderingApi_ = toRenderingApi(config["api"].as<std::string>());
+    }
+    catch (...)
+    {
+        renderingApi_ = RenderingAPI::D3D11;
+    }
+    
     return true;
 }
 catch (...)

@@ -71,6 +71,16 @@ void dwnd_init(const char* game_name, bool start_in_fullscreen)
     glewInit();
     wglewInit();
 
+    auto vsync = Plugin::config().vsyncMode();
+    if (vsync == VsyncMode::AUTOMATIC)
+    {
+        wglSwapIntervalEXT(-1);
+    }
+    else
+    {
+        wglSwapIntervalEXT((int) vsync);
+    }
+
     Plugin::resize(false);
 }
 
