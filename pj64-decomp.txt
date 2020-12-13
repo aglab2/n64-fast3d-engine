@@ -1,0 +1,31 @@
+GfxRomClosed is called to shutdown Gfx plugin
+Possible stacks:
+
+GfxRomClose
+	CloseCpu
+		StartEmulation - weirdchamp situation
+		Main_Proc
+			ID_FILE_ENDEMULATION
+			ID_CPU_RESET
+		ShutdownApplication
+		OpenChosenFile
+		PluginSelectProc
+	Machine_LoadState
+		DoSomething
+		...
+		
+Scenarios Available
+1) End Emulation
+	0x41dd40 -> 0x40d4d5
+2) Reset
+	0x41dd40 -> 0x40d545
+3) Shutdown
+	0x41dd40 -> 0x40fd6d -> 0x470897(?) -> 0x40a6a0 (?)
+4) Open File
+	0x41dd40 -> 0x449ef5 -> 0x449e20 -> 0x449e20
+5) Switch plugin
+	0x41dd40 -> 0x417f41
+6) Load State
+	0x4d5260 -> 0x41f309
+
+Throwaway Symbols: 0x40cc80

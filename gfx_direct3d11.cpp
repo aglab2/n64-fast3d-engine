@@ -96,8 +96,6 @@ static struct {
     ComPtr<ID3D11Debug> debug;
 #endif
 
-    DXGI_SAMPLE_DESC sample_description;
-
     PerFrameCB per_frame_cb_data;
     PerDrawCB per_draw_cb_data;
 
@@ -161,7 +159,7 @@ static void create_render_target_views(void) {
 
     // Create depth buffer
 
-    D3D11_TEXTURE2D_DESC depth_stencil_texture_desc;
+    D3D11_TEXTURE2D_DESC depth_stencil_texture_desc{};
     ZeroMemory(&depth_stencil_texture_desc, sizeof(D3D11_TEXTURE2D_DESC));
 
     depth_stencil_texture_desc.Width = desc1.Width;
@@ -170,7 +168,7 @@ static void create_render_target_views(void) {
     depth_stencil_texture_desc.ArraySize = 1;
     depth_stencil_texture_desc.Format = d3d.feature_level >= D3D_FEATURE_LEVEL_10_0 ?
                                         DXGI_FORMAT_D32_FLOAT : DXGI_FORMAT_D24_UNORM_S8_UINT;
-    depth_stencil_texture_desc.SampleDesc = d3d.sample_description;
+    depth_stencil_texture_desc.SampleDesc.Count = Plugin::config().sampleCount();
     depth_stencil_texture_desc.Usage = D3D11_USAGE_DEFAULT;
     depth_stencil_texture_desc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
     depth_stencil_texture_desc.CPUAccessFlags = 0;
@@ -237,11 +235,6 @@ static void gfx_d3d11_init(void) {
             return true;
         }
     });
-
-    // Sample description to be used in back buffer and depth buffer
-
-    d3d.sample_description.Count   = 1;
-    d3d.sample_description.Quality = 0;
 
     // Create D3D Debug device if in debug mode
 

@@ -8,24 +8,20 @@
 #include "../gfx_dxgi.h"
 #include "../gfx_opengl.h"
 #include "dwnd.h"
+#include "reset_recognizer.h"
 
 #include <shellapi.h>
 
-#define RSPTHREAD
-
 #include <atomic>
-#ifdef RSPTHREAD
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <future>
 #include <thread>
-#endif
 
 static std::atomic_bool gFullscreen = false;
 static std::atomic_bool gNewTasksAllowed = false;
 
-#ifdef RSPTHREAD
 using Task = std::packaged_task<void(void)>;
 static std::atomic_bool gRunning = false;
 static std::deque<Task> gOperations;
@@ -49,7 +45,6 @@ static void RSPThread()
         lck.lock();
     }
 }
-#endif
 
 static void plugin_init(void)
 {
@@ -70,16 +65,20 @@ static void plugin_init(void)
 static void plugin_deinit(void)
 {
     gfx_deinit();
-#ifdef RSPTHREAD
     gRunning = false;
-#endif
 }
 
 static void plugin_dl(void)
 {
     auto& info = Plugin::info();
     auto dlistStart = *(uint32_t*)(info.DMEM + 0xff0);
-    auto dlistSize = *(uint32_t*)(info.DMEM + 0xff4);
+    auto dlistSize  = *(uint32_t*)(info.DMEM + 0xff4);
+
+    auto ucStart  = *(uint32_t*)(info.DMEM + 0xfd0);
+    auto ucDStart = *(uint32_t*)(info.DMEM + 0xfd8);
+    auto ucDSize  = *(uint32_t*)(info.DMEM + 0xfdc);
+
+    gfx_load_ucode(ucStart, ucDStart, ucDSize);
     gfx_start_frame();
     gfx_run(&info.RDRAM[dlistStart]);
 }
@@ -253,23 +252,27 @@ EXPORT void CALL MoveScreen(int xpos, int ypos)
 *******************************************************************/
 EXPORT void CALL ProcessDList(void)
 {
+    auto& cfg = Plugin::config();
     if (!gNewTasksAllowed)
         return;
 
-#ifndef RSPTHREAD
-    plugin_dl();
-    plugin_draw();
-#else
-    Task task(plugin_dl);
-    auto future = task.get_future();
+    if (!cfg.rspThread())
     {
-        std::unique_lock<std::mutex> lck(gOperationMutex);
-        gOperations.emplace_back(std::move(task));
-        gOperations.emplace_back(Task(plugin_draw));
+        plugin_dl();
+        plugin_draw();
     }
-    gOperationCV.notify_one();
-    future.get();
-#endif
+    else
+    {
+        Task task(plugin_dl);
+        auto future = task.get_future();
+        {
+            std::unique_lock<std::mutex> lck(gOperationMutex);
+            gOperations.emplace_back(std::move(task));
+            gOperations.emplace_back(Task(plugin_draw));
+        }
+        gOperationCV.notify_one();
+        future.get();
+    }
 }
 
 /******************************************************************
@@ -289,22 +292,41 @@ EXPORT void CALL ProcessRDPList(void) { }
 *******************************************************************/
 EXPORT void CALL RomClosed(void)
 {
+    auto& config = Plugin::config();
+    if (config.recognizeResets())
+    {
+        auto addresses = ResetRecognizer::stackAddresses();
+        if (config.traceDeinitStack())
+        {
+            auto addressesStr = ResetRecognizer::toString(addresses);
+            MessageBox(nullptr, addressesStr.c_str(), "Deinit Trace", MB_ICONINFORMATION | MB_OK);
+        }
+        auto closeType = ResetRecognizer::recognize(addresses);
+        if (closeType == ResetRecognizer::Type::LOAD_STATE
+         || closeType == ResetRecognizer::Type::OPEN_ROM
+         || closeType == ResetRecognizer::Type::RESET)
+            return;
+    }
+
     gNewTasksAllowed = false;
 
-#ifndef RSPTHREAD
-    plugin_deinit();
-#else
-    Task task(plugin_deinit);
-    auto future = task.get_future();
+    if (!config.rspThread())
     {
-        std::unique_lock<std::mutex> lck(gOperationMutex);
-        gOperations.emplace_back(std::move(task));
+        plugin_deinit();
     }
-    gOperationCV.notify_one();
-    future.get();
+    else
+    {
+        Task task(plugin_deinit);
+        auto future = task.get_future();
+        {
+            std::unique_lock<std::mutex> lck(gOperationMutex);
+            gOperations.emplace_back(std::move(task));
+        }
+        gOperationCV.notify_one();
+        future.get();
 
-    gRSPThread.join();
-#endif
+        gRSPThread.join();
+    }
 }
 
 /******************************************************************
@@ -316,21 +338,28 @@ EXPORT void CALL RomClosed(void)
 *******************************************************************/
 EXPORT void CALL RomOpen(void)
 {
-#ifndef RSPTHREAD
-    plugin_init();
-#else
-    gRunning = true;
-    gRSPThread = std::thread(RSPThread);
+    auto& config = Plugin::config();
+    if (gNewTasksAllowed)
+        return;
 
-    Task task(plugin_init);
-    auto future = task.get_future();
+    if (!config.rspThread())
     {
-        std::unique_lock<std::mutex> lck(gOperationMutex);
-        gOperations.emplace_back(std::move(task));
+        plugin_init();
     }
-    gOperationCV.notify_one();
-    future.get();
-#endif
+    else
+    {
+        gRunning = true;
+        gRSPThread = std::thread(RSPThread);
+
+        Task task(plugin_init);
+        auto future = task.get_future();
+        {
+            std::unique_lock<std::mutex> lck(gOperationMutex);
+            gOperations.emplace_back(std::move(task));
+        }
+        gOperationCV.notify_one();
+        future.get();
+    }
 
     gNewTasksAllowed = true;
 }

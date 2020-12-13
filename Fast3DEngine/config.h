@@ -12,6 +12,7 @@ enum class VsyncMode
     V5 = 5,
 
     AUTOMATIC = 100,
+    PERFECT = 101,
 };
 
 enum class RenderingAPI
@@ -35,6 +36,10 @@ public:
     auto shadowBias()       const { return shadowBias_; }
     auto captureFrames()    const { return captureFrames_; }
     auto renderingApi()     const { return renderingApi_; }
+    auto recognizeResets()  const { return recognizeResets_; }
+    auto traceDeinitStack() const { return traceDeinitStack_; }
+    auto rspThread()        const { return rspThread_; }
+    auto sampleCount()      const { return sampleCount_; }
 
     const std::string& configPath() const { return configPath_; }
 
@@ -50,6 +55,10 @@ private:
     bool captureFrames_ = false;
     RenderingAPI renderingApi_ = RenderingAPI::D3D11;
     std::string configPath_;
+    bool recognizeResets_;
+    bool rspThread_;
+    bool traceDeinitStack_;
+    int sampleCount_;
 
     bool read(const std::string&);
 };

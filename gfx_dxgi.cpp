@@ -38,8 +38,8 @@
 #endif
 
 #include "Fast3DEngine/plugin.h"
-
 #include "Fast3DEngine/os.h"
+#include "Fast3DEngine/perfect_timer.h"
 
 using namespace Microsoft::WRL; // For ComPtr
 
@@ -75,6 +75,7 @@ static struct {
     bool (*on_key_up)(int scancode);
     void (*on_all_keys_up)(void);
 } dxgi = {};
+static PerfectTimer perfectTimer((DOUBLE)(1000) / (DOUBLE)(30));
 
 static void load_dxgi_library(void) {
     dxgi.dxgi_module = LoadLibraryW(L"dxgi.dll");
@@ -246,6 +247,7 @@ static void calculate_sync_interval() {
 static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
     Plugin::resize(false);
 
+    perfectTimer.start();
     LARGE_INTEGER qpc_init, qpc_freq;
     QueryPerformanceCounter(&qpc_init);
     QueryPerformanceFrequency(&qpc_freq);
@@ -261,9 +263,17 @@ static void gfx_dxgi_init(const char *game_name, bool start_in_fullscreen) {
 
     auto vsyncMode = Plugin::config().vsyncMode();
     if (vsyncMode == VsyncMode::AUTOMATIC)
+    {
         calculate_sync_interval();
+    }
+    else if (vsyncMode == VsyncMode::PERFECT)
+    {
+        dxgi.length_in_vsync_frames = 0;
+    }
     else
-        dxgi.length_in_vsync_frames = (UINT) vsyncMode;
+    {
+        dxgi.length_in_vsync_frames = (UINT)vsyncMode;
+    }
 }
 
 static void gfx_dxgi_deinit() {
@@ -272,6 +282,7 @@ static void gfx_dxgi_deinit() {
     dxgi.dxgi_module = 0;
 
     dxgi = {};
+    perfectTimer.stop();
 }
 
 static void gfx_dxgi_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen)) {
@@ -420,6 +431,10 @@ static bool gfx_dxgi_start_frame(void) {
 }
 
 static void gfx_dxgi_swap_buffers_begin(void) {
+    auto& config = Plugin::config();
+    if (VsyncMode::PERFECT == config.vsyncMode())
+        perfectTimer.process();
+    
     ThrowIfFailed(dxgi.swap_chain->Present(dxgi.length_in_vsync_frames, 0), "Present");
     //UINT this_present_id;
     //if (dxgi.swap_chain->GetLastPresentCount(&this_present_id) == S_OK) {
@@ -440,9 +455,6 @@ static void gfx_dxgi_swap_buffers_end(void) {
         // else TODO: maybe sleep until some estimated time the frame will be shown to reduce lag
     }
 
-    DXGI_FRAME_STATISTICS stats;
-    dxgi.swap_chain->GetFrameStatistics(&stats);
-
     QueryPerformanceCounter(&t2);
 
     // dxgi.sync_interval_means_frames_to_wait = dxgi.pending_frame_stats.rbegin()->first == stats.PresentCount;
@@ -457,7 +469,7 @@ static double gfx_dxgi_get_time(void) {
 }
 
 void gfx_dxgi_create_factory_and_device(bool debug, int d3d_version, bool (*create_device_fn)(IDXGIAdapter1 *adapter, bool test_only)) {
-    if (dxgi.CreateDXGIFactory2 != nullptr) {
+    if (0 /*dxgi.CreateDXGIFactory2 != nullptr*/) {
         ThrowIfFailed(dxgi.CreateDXGIFactory2(debug ? DXGI_CREATE_FACTORY_DEBUG : 0, __uuidof(IDXGIFactory2), &dxgi.factory), "CreateDXGIFactory2");
     } else {
         ThrowIfFailed(dxgi.CreateDXGIFactory1(__uuidof(IDXGIFactory2), &dxgi.factory), "CreateDXGIFactory1");
@@ -479,7 +491,7 @@ void gfx_dxgi_create_factory_and_device(bool debug, int d3d_version, bool (*crea
 
 ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
     bool win8 = IsWindows8OrGreater(); // DXGI_SCALING_NONE is only supported on Win8 and beyond
-    bool dxgi_13 = dxgi.CreateDXGIFactory2 != nullptr; // DXGI 1.3 introduced waitable object
+    bool dxgi_13 = false; //  dxgi.CreateDXGIFactory2 != nullptr; // DXGI 1.3 introduced waitable object
 
     DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
     swap_chain_desc.BufferCount = 2;
@@ -488,9 +500,9 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
     swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
-    swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // Apparently this was backported to Win 7 Platform Update
+    swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_SEQUENTIAL; // DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // Apparently this was backported to Win 7 Platform Update
     swap_chain_desc.Flags = dxgi_13 ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0;
-    swap_chain_desc.SampleDesc.Count = 1;
+    swap_chain_desc.SampleDesc.Count = Plugin::config().sampleCount();
 
     run_as_dpi_aware([&] () {
         // When setting size for the buffers, the values that DXGI puts into the desc (that can later be retrieved by GetDesc1)
@@ -503,7 +515,7 @@ ComPtr<IDXGISwapChain1> gfx_dxgi_create_swap_chain(IUnknown *device) {
 
     ComPtr<IDXGISwapChain2> swap_chain2;
     if (dxgi.swap_chain->QueryInterface(__uuidof(IDXGISwapChain2), &swap_chain2) == S_OK) {
-        ThrowIfFailed(swap_chain2->SetMaximumFrameLatency(1), "SetMaximumFrameLatency");
+        // ThrowIfFailed(swap_chain2->SetMaximumFrameLatency(1), "SetMaximumFrameLatency");
         dxgi.waitable_object = swap_chain2->GetFrameLatencyWaitableObject();
         WaitForSingleObject(dxgi.waitable_object, INFINITE);
     } else {
@@ -526,8 +538,11 @@ void gfx_dxgi_destroy_factory_and_device()
 
 void gfx_dxgi_destroy_swap_chain()
 {
-    CloseHandle(dxgi.waitable_object);
-    dxgi.waitable_object = {};
+    if (dxgi.waitable_object)
+    {
+        CloseHandle(dxgi.waitable_object);
+        dxgi.waitable_object = {};
+    }
     dxgi.swap_chain.Reset();
 
     dxgi.CreateDXGIFactory1 = nullptr;

@@ -2,7 +2,7 @@
 
 const char* Plugin::sName()
 {
-    return "LINK's Fast3DEngine v0.10";
+    return "LINK's Fast3DEngine v0.12";
 }
 
 void Plugin::sSetInfo(GFX_INFO i)

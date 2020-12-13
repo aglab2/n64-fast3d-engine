@@ -6,10 +6,12 @@
 
 #include "../gfx_screen_config.h"
 
+#include "perfect_timer.h"
 #include "plugin.h"
 
 static HGLRC hRC;
 static HDC   hDC;
+static PerfectTimer perfectTimer((DOUBLE) (1000) / (DOUBLE) (30));
 
 void dwnd_init(const char* game_name, bool start_in_fullscreen)
 {
@@ -76,6 +78,10 @@ void dwnd_init(const char* game_name, bool start_in_fullscreen)
     {
         wglSwapIntervalEXT(-1);
     }
+    else if (vsync == VsyncMode::PERFECT)
+    {
+        wglSwapIntervalEXT(0);
+    }
     else
     {
         wglSwapIntervalEXT((int) vsync);
@@ -118,6 +124,10 @@ void dwnd_get_dimensions(uint32_t* width, uint32_t* height)
 
 void dwnd_swap_buffers_begin(void)
 {
+    auto& config = Plugin::config();
+    if (VsyncMode::PERFECT == config.vsyncMode())
+        perfectTimer.process();
+
     if (hDC == NULL)
         SwapBuffers(wglGetCurrentDC());
     else

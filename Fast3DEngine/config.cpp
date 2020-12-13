@@ -35,6 +35,9 @@ static VsyncMode toVsyncMode(const std::string& mode)
 
     if ("auto" == mode)
         return VsyncMode::AUTOMATIC;
+
+    if ("perfect" == mode)
+        return VsyncMode::PERFECT;
     
     return VsyncMode::DISABLED;
 }
@@ -96,7 +99,50 @@ try
     {
         renderingApi_ = RenderingAPI::D3D11;
     }
-    
+
+    try
+    {
+        recognizeResets_ = config["recognizeResets"].as<bool>();
+    }
+    catch (...)
+    {
+        recognizeResets_ = false;
+    }
+
+    try
+    {
+        traceDeinitStack_ = config["traceDeinitStack"].as<bool>();
+    }
+    catch (...)
+    {
+        traceDeinitStack_ = false;
+    }
+
+    try
+    {
+        sampleCount_ = config["sampleCount"].as<int>();
+    }
+    catch (...)
+    {
+        sampleCount_ = 1;
+    }
+
+    if (RenderingAPI::OPENGL != renderingApi_)
+    {
+        try
+        {
+            rspThread_ = config["rspThread"].as<bool>();
+        }
+        catch (...)
+        {
+            rspThread_ = false;
+        }
+    }
+    else
+    {
+        rspThread_ = true;
+    }
+
     return true;
 }
 catch (...)
